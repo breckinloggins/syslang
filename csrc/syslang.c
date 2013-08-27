@@ -19,11 +19,6 @@ size_t list_count(struct list_node_t* list)
   return count;
 }
 
-enum interpreter_mode_t {
-  imode_interpret,
-  imode_compile
-} interpreter_mode;
-
 enum node_type_t {
   node_fragment = 0,          /* Part of a word only */
   node_normal,                /* A normal word (TODO: What does this mean?) */
@@ -31,6 +26,7 @@ enum node_type_t {
   node_code                   /* Contains executable code */
 } node_type;
 
+struct env_t;                 /* Forward decl */
 struct word_trie_node_t {
   int words;          /* Number of words terminating here */
   int prefixes;       /* Number of words for which this is a prefix */
@@ -41,7 +37,7 @@ struct word_trie_node_t {
                       */
 
   union {
-    void (*code)();
+    void (*code)(struct env_t* env);
   } content;
 
   struct word_trie_node_t* edges[128]; /* This is obviously inefficient and won't work for unicode */
@@ -150,21 +146,73 @@ struct word_trie_node_t* word_trie_lookup(struct word_trie_node_t* start, char *
   return word_node;
 }
 
-void builtin_bye()
+enum interpreter_mode_t {
+  imode_interpret,
+  imode_compile
+} interpreter_mode;
+
+struct env_t {
+  struct env_t* parent;
+  enum interpreter_mode_t mode;
+  struct word_trie_node_t* dictionary;
+};
+
+struct env_t* env_new(struct env_t* parent)
+{
+  struct env_t* env = calloc(1, sizeof(struct env_t));
+  env->parent = parent;
+
+  return env;
+}
+
+struct word_trie_node_t* env_add(struct env_t* env, char* word)
+{
+  if (!env) DIE("internal compiler error - orphaned environment"); /* Sanity check */
+  if (!env->dictionary) return env_add(env->parent, word);
+  
+  struct word_trie_node_t* node = 0;
+  word_trie_insert(env->dictionary, word, &node);
+  return node;
+}
+
+struct word_trie_node_t* env_lookup(struct env_t* env, char* word)
+{
+  if (!env) DIE("internal compiler error - orphaned environment"); /* Sanity check */
+  
+  struct word_trie_node_t* node = word_trie_lookup(env->dictionary, word);
+  if (node) {
+    return node;
+  } else if (env->parent) {
+    return env_lookup(env->parent, word); 
+  } else {
+    return 0;
+  }
+}
+
+void builtin_bye(struct env_t* env)
 {
   exit(0);
 }
 
-void init_bootstrap_words(struct word_trie_node_t* root)
+void builtin__dbg(struct env_t* env)
 {
-  struct word_trie_node_t* leaf = 0;
+  word_trie_print(env->dictionary, 0, stderr);
+}
+
+void root_env_init(struct env_t* env)
+{
+  struct word_trie_node_t* node = 0;
   
-  word_trie_insert(root, ":", &leaf);
-  leaf->type = node_normal;
+  node = env_add(env, ":");
+  node->type = node_normal;
   
-  word_trie_insert(root, "bye", &leaf); 
-  leaf->type = node_code;
-  leaf->content.code = builtin_bye; 
+  node = env_add(env, "_dbg");
+  node->type = node_code;
+  node->content.code = builtin__dbg;
+
+  node = env_add(env, "bye"); 
+  node->type = node_code;
+  node->content.code = builtin_bye; 
 }
 
 int main(int argc, char** argv)
@@ -174,27 +222,26 @@ int main(int argc, char** argv)
   char cur_word[MAX_WORD_LEN + 1];
   int cur_word_idx = 0;
 
-  enum interpreter_mode_t imode = imode_interpret;
-  struct word_trie_node_t* root = word_trie_init(0);
-  init_bootstrap_words(root);
+  struct env_t* root_env = env_new(0);
+  root_env->dictionary = word_trie_init(0);
+  root_env_init(root_env);
+
+  struct env_t* cur_env = root_env;
 
   bzero(cur_word, MAX_WORD_LEN + 1);
     
   fprintf(stderr, "Syslang Forthish Bootstrap v0.1\n%d words in top-level dictionary\n", 
-      word_trie_count_all_words(root));
+      word_trie_count_all_words(cur_env->dictionary));
 
-  word_trie_print(root, 0, stderr);
   fprintf(stderr, "\n");
   while ((ch = getchar()) != EOF)  {
     if (isspace(ch))  {
       if (!cur_word_idx)  continue;
 
-      //fprintf(stderr, "Debug: cur_word is %s\n", cur_word);
-
-      struct word_trie_node_t* trie_node = word_trie_lookup(root, cur_word);
+      struct word_trie_node_t* trie_node = env_lookup(cur_env, cur_word);
       if (trie_node)  {
         if (trie_node->type == node_code) {
-          trie_node->content.code();
+          trie_node->content.code(cur_env);
         }
       } else {
         fprintf(stderr, "Error: %s is undefined\n", cur_word);
