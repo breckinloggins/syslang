@@ -176,6 +176,7 @@ struct env_t {
   struct env_t* parent;
   enum interpreter_mode_t mode;
   
+  struct word_trie_node_t* compiling_word;
   struct word_trie_node_t* ip;  /* instruction pointer */
   char cur_word[MAX_WORD_LEN + 1];
   int cur_word_idx;
@@ -259,11 +260,21 @@ void builtin_execute(struct env_t* env)
   if (env->mode == imode_interpret || env->ip->immediate) {
     env->ip->code(env);
   } else if (env->mode == imode_compile) {
-    struct word_ptr_node_t* last = env->ip->param;
-    while (last && last->list_node.next) last = (struct word_ptr_node_t*)last->list_node.next;
+    if (!env->compiling_word) DIE("internal compiler error - not compiling");
+
+    struct word_ptr_node_t* last = env->compiling_word->param;
+    struct word_ptr_node_t* prev = last;
+    while (last && last->list_node.next)  {
+      prev = last;
+      last = (struct word_ptr_node_t*)last->list_node.next;
+    }
 
     last = calloc(1, sizeof(struct word_ptr_node_t));
-    if (!env->ip->param) env->ip->param = last;
+    if (!env->compiling_word->param)  {
+      env->compiling_word->param = last;
+    } else {
+      prev->list_node.next = (struct list_node_t*)last;
+    }
 
     last->word = env->ip;
   } else {
@@ -277,7 +288,6 @@ void builtin_call(struct env_t* env)
   stack_push(env->rstack, &env->rstack_idx, env->ip);
   struct word_ptr_node_t* p = env->ip->param;
   while (p) {
-    fprintf(stderr, "HUH?\n");
     env->ip = p->word;
     builtin_execute(env);
     p = (struct word_ptr_node_t*)p->list_node.next;
@@ -289,15 +299,15 @@ void builtin_call(struct env_t* env)
 void builtin__colon_(struct env_t* env)
 {
   builtin_read_word(env);
-  env->ip = env_add(env, env->cur_word);
-  env->ip->type = node_normal;
-  env->ip->code = builtin_call;
+  env->compiling_word = env_add(env, env->cur_word);
+  env->compiling_word->type = node_normal;
+  env->compiling_word->code = builtin_call;
   env->mode = imode_compile;
 }
 
 void builtin__semicolon_(struct env_t* env)
 {
-  env->ip = 0; /* TODO: Restore rstack */
+  env->compiling_word = 0; 
   env->mode = imode_interpret;
 }
 
