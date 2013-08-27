@@ -449,6 +449,7 @@ int main(int argc, char** argv)
       builtin_execute(cur_env);
     } else {
       fprintf(stderr, "Error: %s is undefined\n", cur_env->cur_word);
+      fpurge(stdin);
     }
   }
   return 0;
