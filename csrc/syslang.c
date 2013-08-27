@@ -30,6 +30,7 @@ struct word_ptr_node_t {
 enum node_type_t {
   node_fragment = 0,          /* Part of a word only */
   node_normal,                /* A normal word (TODO: What does this mean?) */
+  node_number,                /* A number literal */
   node_pointer,               /* Points to another node in the trie */
   node_code                   /* Contains executable code */
 } node_type;
@@ -154,6 +155,18 @@ struct word_trie_node_t* word_trie_lookup(struct word_trie_node_t* start, char *
   return word_node;
 }
 
+void stack_push(struct word_trie_node_t** stack, int* stack_idx, struct word_trie_node_t* item)
+{
+  if (*stack_idx == 0) DIE("stack overflow");
+  stack[--(*stack_idx)] = item;
+}
+
+struct word_trie_node_t* stack_pop(struct word_trie_node_t** stack, int* stack_idx)
+{
+  if (*stack_idx >= STACK_SIZE) DIE("stack underflow");
+  return stack[(*stack_idx)++];
+}
+
 enum interpreter_mode_t {
   imode_interpret,
   imode_compile
@@ -180,8 +193,8 @@ struct env_t* env_new(struct env_t* parent)
 {
   struct env_t* env = calloc(1, sizeof(struct env_t));
   env->parent = parent;
-  env->stack_idx = STACK_SIZE - 1;
-  env->rstack_idx = STACK_SIZE - 1;
+  env->stack_idx = STACK_SIZE;
+  env->rstack_idx = STACK_SIZE;
   return env;
 }
 
@@ -261,10 +274,7 @@ void builtin_execute(struct env_t* env)
 void builtin_call(struct env_t* env)
 {
   /* like execute but saves the call stack */
-  if (env->rstack_idx == 0) DIE("stack overflow");
-  if (env->rstack_idx >= STACK_SIZE) DIE("stack underflow");
-
-  env->rstack[--env->rstack_idx] = env->ip;
+  stack_push(env->rstack, &env->rstack_idx, env->ip);
   struct word_ptr_node_t* p = env->ip->param;
   while (p) {
     fprintf(stderr, "HUH?\n");
@@ -273,8 +283,7 @@ void builtin_call(struct env_t* env)
     p = (struct word_ptr_node_t*)p->list_node.next;
   }
   
-  if (env->rstack_idx >= STACK_SIZE) DIE("stack underflow");
-  env->ip = env->rstack[env->rstack_idx++];
+  env->ip = stack_pop(env->rstack, &env->rstack_idx);
 }
 
 void builtin__colon_(struct env_t* env)
@@ -290,6 +299,54 @@ void builtin__semicolon_(struct env_t* env)
 {
   env->ip = 0; /* TODO: Restore rstack */
   env->mode = imode_interpret;
+}
+
+void builtin__dot_(struct env_t* env)
+{
+  struct word_trie_node_t* node = stack_pop(env->stack, &env->stack_idx);
+  switch (node->type) {
+  case node_code:
+    fprintf(stderr, "<code>\n");
+    break;
+  case node_normal:
+    fprintf(stderr, "<normal>\n");
+    break;
+  case node_number:
+    fprintf(stderr, "%ld\n", (long)node->param->word);
+    break;
+  default:
+    fprintf(stderr, "<unknown>\n");
+  }
+}
+
+void builtin_number(struct env_t* env)
+{
+    // TODO: should probably be push self instead of this
+    stack_push(env->stack, &env->stack_idx, env->ip);
+}
+
+void builtin__plus_(struct env_t* env)
+{
+  struct word_trie_node_t* arg1 = stack_pop(env->stack, &env->stack_idx);
+  struct word_trie_node_t* arg2 = stack_pop(env->stack, &env->stack_idx);
+
+  if (arg1->type != node_number || arg2->type != node_number)  {
+    DIE("at least one arg to + was not a number");
+  }
+
+  long res = (long)arg1->param->word + (long)arg2->param->word;
+  char numstr[32];
+  bzero(numstr, 32);
+  numstr[0] = '\0';
+  snprintf(numstr, 31, "%ld", res);
+
+  struct word_trie_node_t* res_node = env_add(env, numstr);
+  res_node->type = node_number;
+  res_node->code = builtin_number;
+  res_node->param = calloc(1, sizeof(struct word_ptr_node_t));
+  res_node->param->word = (struct word_trie_node_t*)res;
+
+  stack_push(env->stack, &env->stack_idx, res_node);
 }
 
 void builtin__dbg(struct env_t* env)
@@ -310,6 +367,14 @@ void root_env_init(struct env_t* env)
   node->immediate = 1;
   node->code = builtin__semicolon_;
 
+  node = env_add(env, ".");
+  node->type = node_code;
+  node->code = builtin__dot_;
+
+  node = env_add(env, "+");
+  node->type = node_code;
+  node->code = builtin__plus_;
+
   node = env_add(env, "execute");
   node->type = node_code;
   node->code = builtin_execute;
@@ -325,6 +390,10 @@ void root_env_init(struct env_t* env)
   node = env_add(env, "words");
   node->type = node_code;
   node->code = builtin_words;
+
+  node = env_add(env, "number");
+  node->type = node_code;
+  node->code = builtin_number;
 
   node = env_add(env, "read_word");
   node->type = node_code;
@@ -350,6 +419,21 @@ int main(int argc, char** argv)
   while (1) {
     builtin_read_word(cur_env);
     struct word_trie_node_t* trie_node = env_lookup(cur_env, cur_env->cur_word);
+
+    if (!trie_node) {
+      /* try to parse as a number */
+      char* parse_end = 0;
+      long number_val = strtol(cur_env->cur_word, &parse_end, 10);
+
+      if (*cur_env->cur_word != '\0' && *parse_end=='\0') {
+        trie_node = env_add(cur_env, cur_env->cur_word);
+        trie_node->type = node_number;
+        trie_node->code = builtin_number;
+        trie_node->param = calloc(1, sizeof(struct word_ptr_node_t));
+        trie_node->param->word = (struct word_trie_node_t*)number_val;
+      } 
+    }
+
     if (trie_node)  {
       cur_env->ip = trie_node;
       builtin_execute(cur_env);
