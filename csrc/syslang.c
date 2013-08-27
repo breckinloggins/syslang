@@ -23,57 +23,148 @@ enum interpreter_mode_t {
   imode_interpret,
   imode_compile
 } interpreter_mode;
-    
-struct word_list_node_t {
-  struct list_node_t node;
 
-  char word[MAX_WORD_LEN + 1];
-  struct word_list_node_t* definition;
-  void (*builtin_fn)(struct word_list_node_t* words_context);
-} word_list_node;
+enum node_type_t {
+  node_fragment = 0,          /* Part of a word only */
+  node_normal,                /* A normal word (TODO: What does this mean?) */
+  node_pointer,               /* Points to another node in the trie */
+  node_code                   /* Contains executable code */
+} node_type;
 
-struct word_tree_node_t {
+struct word_trie_node_t {
+  int words;          /* Number of words terminating here */
+  int prefixes;       /* Number of words for which this is a prefix */
 
-  int ch;
-  
-  int edges[128]; /* This is obviously inefficient and won't work for unicode */
+  enum node_type_t type;
+  int immediate;      /* If a non-fragment node, whether this node executes 
+                         immediately regardless of interpreter mode
+                      */
 
-} word_tree_node;
+  union {
+    void (*code)();
+  } content;
 
-struct word_list_node_t* word_lookup(struct word_list_node_t* word_list, const char* word)
+  struct word_trie_node_t* edges[128]; /* This is obviously inefficient and won't work for unicode */
+} word_trie_node;
+
+struct word_trie_node_t* word_trie_init(struct word_trie_node_t* node)
 {
-  /* Yes, I know a hashtable would be faster */
-  if (!word_list) return 0;
-
-  if (!(strncmp(word, word_list->word, strlen(word)))) {
-    return word_list;
+  int i;
+  if (!node)  {
+    node = (struct word_trie_node_t*)calloc(1, sizeof(struct word_trie_node_t));
   }
 
-  return word_lookup((struct word_list_node_t*)word_list->node.next, word);
+  return node;
 }
 
-struct word_list_node_t* word_prepend(struct word_list_node_t* word_list, const char* word)
+struct word_trie_node_t* word_trie_insert(struct word_trie_node_t* start, char* str, struct word_trie_node_t** leaf)
 {
-  struct word_list_node_t* word_node = calloc(1, sizeof(struct word_list_node_t));
-  strncpy(word_node->word, word, MAX_WORD_LEN);
+  if (str[0] == '\0') {
+    if (leaf) *leaf = start;
+    start->words = start->words + 1;
+    return start;
+  }
 
-  word_node->node.next = (struct list_node_t*)word_list;
+  start->prefixes = start->prefixes + 1;
+  char k = str[0];
+  ++str;
+  if (!start->edges[k]) {
+    start->edges[k] = word_trie_init(0);
+  }
+  start->edges[k] = word_trie_insert(start->edges[k], str, leaf);
+
+  return start;
+}
+
+int word_trie_count_words(struct word_trie_node_t* start, char* str, struct word_trie_node_t** leaf)
+{
+  if (str[0] == '\0') {
+    if (leaf) *leaf = start;
+    return start->words;
+  }
+
+  char k = str[0];
+  ++str;
+
+  if (!start->edges[k]) {
+    if (leaf) *leaf = 0;
+    return 0;
+  }
+
+  return word_trie_count_words(start->edges[k], str, leaf);
+}
+
+int word_trie_count_prefixes(struct word_trie_node_t* start, char* str)
+{
+  if (str[0] == '\0') {
+    return start->prefixes;
+  }
+
+  char k = str[0];
+  ++str;
+
+  if (!start->edges[k]) {
+    return 0;
+  }
+
+  return word_trie_count_prefixes(start->edges[k], str);
+}
+
+void word_trie_print(struct word_trie_node_t* start, int level, FILE* fp)
+{
+  for (int i = 0; i < level; i++) fprintf(fp, "  ");
+  fprintf(fp, "W: %d, P:%d, T: %d, I: %d\n", 
+      start->words, start->prefixes, start->type, start->immediate);
+  for (int i = 0; i < 128; i++) {
+    if (!start->edges[i]) continue;
+    for (int k = 0; k < level; k++) fprintf(fp, "   ");
+    fprintf(fp, "'%c':\n", i);
+    word_trie_print(start->edges[i], level+1, fp); 
+  }
+}
+
+int word_trie_count_all_words(struct word_trie_node_t* start)
+{
+  int words = start->words;
+
+  for (int i = 0; i < 128; i++) {
+    if (!start->edges[i]) continue;
+    words += word_trie_count_all_words(start->edges[i]);
+  }
+
+  return words;
+}
+
+struct word_trie_node_t* word_trie_lookup(struct word_trie_node_t* start, char *word)
+{
+  struct word_trie_node_t* word_node = 0;
+  int word_count = 0;
+  if (!(word_count = word_trie_count_words(start, word, &word_node)) 
+      || !word_node
+      || !word_node->type)  {
+     return 0; 
+  }
+
+  if (word_count > 1) DIE("internal compiler error - invalid word count"); /* Sanity check */
+
   return word_node;
 }
 
-void builtin_bye(struct word_list_node_t* word_context)
+void builtin_bye()
 {
   exit(0);
 }
 
-struct word_list_node_t* word_bootstrap_words()
+void init_bootstrap_words(struct word_trie_node_t* root)
 {
-  struct word_list_node_t* builtins = word_prepend(0, ":");
-
-  builtins = word_prepend(builtins, "bye");
-  builtins->builtin_fn = builtin_bye;
-
-  return builtins;
+  struct word_trie_node_t* leaf = 0;
+  
+  word_trie_insert(root, ":", &leaf);
+  leaf->type = node_normal;
+  
+  word_trie_insert(root, "bye", &leaf); 
+  leaf->type = node_code;
+  leaf->content.code = builtin_bye; 
 }
 
 int main(int argc, char** argv)
@@ -84,28 +175,29 @@ int main(int argc, char** argv)
   int cur_word_idx = 0;
 
   enum interpreter_mode_t imode = imode_interpret;
-  struct word_list_node_t* words = word_bootstrap_words();
+  struct word_trie_node_t* root = word_trie_init(0);
+  init_bootstrap_words(root);
 
   bzero(cur_word, MAX_WORD_LEN + 1);
     
-  fprintf(stderr, "Syslang Forthish Bootstrap v0.1\n%ld words in top-level dictionary\n", 
-      list_count((struct list_node_t*)words));
+  fprintf(stderr, "Syslang Forthish Bootstrap v0.1\n%d words in top-level dictionary\n", 
+      word_trie_count_all_words(root));
 
+  word_trie_print(root, 0, stderr);
+  fprintf(stderr, "\n");
   while ((ch = getchar()) != EOF)  {
     if (isspace(ch))  {
       if (!cur_word_idx)  continue;
 
       //fprintf(stderr, "Debug: cur_word is %s\n", cur_word);
 
-      struct word_list_node_t* word_node = word_lookup(words, (const char*)cur_word);
-      if (!word_node) {
-        fprintf(stderr, "Error: %s is undefined\n", cur_word);
-      } else {
-        if (word_node->builtin_fn)  {
-          word_node->builtin_fn(words);
-        } else {
-          // Recursive!
+      struct word_trie_node_t* trie_node = word_trie_lookup(root, cur_word);
+      if (trie_node)  {
+        if (trie_node->type == node_code) {
+          trie_node->content.code();
         }
+      } else {
+        fprintf(stderr, "Error: %s is undefined\n", cur_word);
       }
 
       bzero(cur_word, MAX_WORD_LEN + 1);
