@@ -37,6 +37,8 @@ enum node_type_t {
 
 struct env_t;                 /* Forward decl */
 struct word_trie_node_t {
+  struct word_trie_node_t* parent; /* Parent node in trie, not parent word */
+
   int words;          /* Number of words terminating here */
   int prefixes;       /* Number of words for which this is a prefix */
 
@@ -77,6 +79,7 @@ struct word_trie_node_t* word_trie_insert(struct word_trie_node_t* start, char* 
   ++str;
   if (!start->edges[k]) {
     start->edges[k] = word_trie_init(0);
+    start->edges[k]->parent = start;
   }
   start->edges[k] = word_trie_insert(start->edges[k], str, leaf);
 
