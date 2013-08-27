@@ -154,6 +154,10 @@ enum interpreter_mode_t {
 struct env_t {
   struct env_t* parent;
   enum interpreter_mode_t mode;
+  
+  char cur_word[MAX_WORD_LEN + 1];
+  int cur_word_idx;
+
   struct word_trie_node_t* dictionary;
 };
 
@@ -189,6 +193,17 @@ struct word_trie_node_t* env_lookup(struct env_t* env, char* word)
   }
 }
 
+void builtin__colon_(struct env_t* env)
+{
+  /* TODO: parse name, enter compilation state */
+  fprintf(stderr, "COLON\n");
+}
+
+void builtin__semicolon_(struct env_t* env)
+{
+  fprintf(stderr, "SEMICOLON\n");
+}
+
 void builtin_bye(struct env_t* env)
 {
   exit(0);
@@ -199,16 +214,46 @@ void builtin__dbg(struct env_t* env)
   word_trie_print(env->dictionary, 0, stderr);
 }
 
+void builtin_read_word(struct env_t* env)
+{
+  int ch = 0;
+
+  bzero(env->cur_word, MAX_WORD_LEN + 1);
+  env->cur_word_idx = 0;
+  while ((ch = getchar()) != EOF)  {
+    if (isspace(ch))  {
+      if (!env->cur_word_idx)  continue;
+      return; 
+    }
+
+    if (env->cur_word_idx >= MAX_WORD_LEN) DIE("Word is too long");
+
+    env->cur_word[env->cur_word_idx++] = ch;
+  }
+
+  if (ch == EOF) builtin_bye(env);
+}
+
 void root_env_init(struct env_t* env)
 {
   struct word_trie_node_t* node = 0;
   
   node = env_add(env, ":");
-  node->type = node_normal;
+  node->type = node_code;
+  node->content.code = builtin__colon_;
+
+  node = env_add(env, ";");
+  node->type = node_code;
+  node->immediate = 1;
+  node->content.code = builtin__semicolon_;
   
   node = env_add(env, "_dbg");
   node->type = node_code;
   node->content.code = builtin__dbg;
+
+  node = env_add(env, "read_word");
+  node->type = node_code;
+  node->content.code = builtin_read_word;
 
   node = env_add(env, "bye"); 
   node->type = node_code;
@@ -217,45 +262,27 @@ void root_env_init(struct env_t* env)
 
 int main(int argc, char** argv)
 {
-  int ch = 0;
-
-  char cur_word[MAX_WORD_LEN + 1];
-  int cur_word_idx = 0;
-
   struct env_t* root_env = env_new(0);
   root_env->dictionary = word_trie_init(0);
   root_env_init(root_env);
 
   struct env_t* cur_env = root_env;
-
-  bzero(cur_word, MAX_WORD_LEN + 1);
     
   fprintf(stderr, "Syslang Forthish Bootstrap v0.1\n%d words in top-level dictionary\n", 
       word_trie_count_all_words(cur_env->dictionary));
 
   fprintf(stderr, "\n");
-  while ((ch = getchar()) != EOF)  {
-    if (isspace(ch))  {
-      if (!cur_word_idx)  continue;
-
-      struct word_trie_node_t* trie_node = env_lookup(cur_env, cur_word);
-      if (trie_node)  {
-        if (trie_node->type == node_code) {
-          trie_node->content.code(cur_env);
-        }
-      } else {
-        fprintf(stderr, "Error: %s is undefined\n", cur_word);
+  while (1) {
+    builtin_read_word(cur_env);
+    struct word_trie_node_t* trie_node = env_lookup(cur_env, cur_env->cur_word);
+    if (trie_node)  {
+      if (trie_node->type == node_code) {
+        trie_node->content.code(cur_env);
       }
-
-      bzero(cur_word, MAX_WORD_LEN + 1);
-      cur_word_idx = 0;
-      continue;
+    } else {
+      fprintf(stderr, "Error: %s is undefined\n", cur_env->cur_word);
     }
-
-    if (cur_word_idx >= MAX_WORD_LEN) DIE("Word is too long");
-
-    cur_word[cur_word_idx++] = ch;
-    
   }
   return 0;
+
 }
