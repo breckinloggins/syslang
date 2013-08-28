@@ -414,9 +414,6 @@ void root_env_init(struct env_t* env)
   node->type = node_code;
   node->code = builtin_number;
 
-  env_add(env, "name");
-  env_add(env, "nation");
-
   node = env_add(env, "read_word");
   node->type = node_code;
   node->code = builtin_read_word;
