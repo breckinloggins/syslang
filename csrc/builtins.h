@@ -118,6 +118,7 @@ BUILTIN(8, "number", code, 0, {
     stack_push(env->stack, &env->stack_idx, env->ip);
 })
 
+/* TODO: Factor these binops */
 BUILTIN(9, "+", code, 0, {
   struct word_trie_node_t* arg1 = stack_pop(env->stack, &env->stack_idx);
   struct word_trie_node_t* arg2 = stack_pop(env->stack, &env->stack_idx);
@@ -141,8 +142,46 @@ BUILTIN(9, "+", code, 0, {
   stack_push(env->stack, &env->stack_idx, res_node);
 })
 
-BUILTIN(10, "_dbg", code, 0, {
+BUILTIN(10, "*", code, 0, {
+  struct word_trie_node_t* arg1 = stack_pop(env->stack, &env->stack_idx);
+  struct word_trie_node_t* arg2 = stack_pop(env->stack, &env->stack_idx);
+
+  if (arg1->type != node_number || arg2->type != node_number)  {
+    DIE("at least one arg to * was not a number");
+  }
+
+  long res = (long)arg1->param->word * (long)arg2->param->word;
+  char numstr[32];
+  bzero(numstr, 32);
+  numstr[0] = '\0';
+  snprintf(numstr, 31, "%ld", res);
+
+  struct word_trie_node_t* res_node = env_add(env, numstr);
+  res_node->type = node_number;
+  res_node->code = builtin_number;
+  res_node->param = calloc(1, sizeof(struct word_ptr_node_t));
+  res_node->param->word = (struct word_trie_node_t*)res;
+
+  stack_push(env->stack, &env->stack_idx, res_node);
+})
+
+BUILTIN(11, "_dbg", code, 0, {
   word_trie_print(env->dictionary, 0, stderr);
+})
+
+BUILTIN(12, ".s", code, 0, {
+  fprintf(stderr, "%d> ", STACK_SIZE - env->stack_idx);
+  for (int i = 0; i < STACK_SIZE - env->stack_idx; i++)  {
+    struct word_trie_node_t* node = env->stack[env->stack_idx + i];
+    switch (node->type) {
+    case node_number:
+      fprintf(stderr, "%ld ", (long)node->param->word);
+      break;
+    default:
+      fprintf(stderr, "? ");
+    }
+  }
+  fprintf(stderr, "\n");
 })
 
 #undef BUILTIN
