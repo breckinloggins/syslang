@@ -3,6 +3,8 @@
 #include <ctype.h>
 #include <string.h>
 
+#include "builtins.h"
+
 #define DIE(s) fprintf(stderr, "ERROR: %s\n", s), exit(1);
 
 #define MAX_WORD_LEN  32
@@ -229,198 +231,35 @@ struct word_trie_node_t* env_lookup(struct env_t* env, char* word)
   }
 }
 
-void builtin_bye(struct env_t* env)
+void EXEC(struct env_t* env, char *word)
 {
-  exit(0);
+  struct word_trie_node_t* node = env_lookup(env, word);
+  if (!node) DIE("internal compiler error - EXEC non-word"); /* sanity check */
+
+  env->ip = node;
+  builtin_execute(env); 
 }
 
-void builtin_words(struct env_t* env)
-{
-  char prefix[MAX_WORD_LEN];
-  prefix[0] = '\0';
-  word_trie_print_words(env->dictionary, prefix);
-  fprintf(stderr, "\n");
-}
+#define BUILTIN(vector, word, type, immediate, fn)                \
+void builtin_##vector(struct env_t* env)                           \
+fn
 
-void builtin_read_word(struct env_t* env)
-{
-  int ch = 0;
+#include "builtins.h"
 
-  bzero(env->cur_word, MAX_WORD_LEN + 1);
-  env->cur_word_idx = 0;
-  while ((ch = getchar()) != EOF)  {
-    if (isspace(ch))  {
-      if (!env->cur_word_idx)  continue;
-      return; 
-    }
-
-    if (env->cur_word_idx >= MAX_WORD_LEN) DIE("Word is too long");
-
-    env->cur_word[env->cur_word_idx++] = ch;
-  }
-
-  if (ch == EOF) builtin_bye(env);
-}
-
-void builtin_execute(struct env_t* env)
-{
-  if (!env->ip) DIE("internal compiler error - no instruction pointer");
-
-  if (env->mode == imode_interpret || env->ip->immediate) {
-    env->ip->code(env);
-  } else if (env->mode == imode_compile) {
-    if (!env->compiling_word) DIE("internal compiler error - not compiling");
-
-    struct word_ptr_node_t* last = env->compiling_word->param;
-    struct word_ptr_node_t* prev = last;
-    while (last && last->list_node.next)  {
-      prev = last;
-      last = (struct word_ptr_node_t*)last->list_node.next;
-    }
-
-    last = calloc(1, sizeof(struct word_ptr_node_t));
-    if (!env->compiling_word->param)  {
-      env->compiling_word->param = last;
-    } else {
-      prev->list_node.next = (struct list_node_t*)last;
-    }
-
-    last->word = env->ip;
-  } else {
-    DIE("internal compiler error - unimplemented compiler mode");
-  }
-}
-
-void builtin_call(struct env_t* env)
-{
-  /* like execute but saves the call stack */
-  stack_push(env->rstack, &env->rstack_idx, env->ip);
-  struct word_ptr_node_t* p = env->ip->param;
-  while (p) {
-    env->ip = p->word;
-    builtin_execute(env);
-    p = (struct word_ptr_node_t*)p->list_node.next;
-  }
-  
-  env->ip = stack_pop(env->rstack, &env->rstack_idx);
-}
-
-void builtin__colon_(struct env_t* env)
-{
-  builtin_read_word(env);
-  env->compiling_word = env_add(env, env->cur_word);
-  env->compiling_word->type = node_normal;
-  env->compiling_word->code = builtin_call;
-  env->mode = imode_compile;
-}
-
-void builtin__semicolon_(struct env_t* env)
-{
-  env->compiling_word = 0; 
-  env->mode = imode_interpret;
-}
-
-void builtin__dot_(struct env_t* env)
-{
-  struct word_trie_node_t* node = stack_pop(env->stack, &env->stack_idx);
-  switch (node->type) {
-  case node_code:
-    fprintf(stderr, "<code>\n");
-    break;
-  case node_normal:
-    fprintf(stderr, "<normal>\n");
-    break;
-  case node_number:
-    fprintf(stderr, "%ld\n", (long)node->param->word);
-    break;
-  default:
-    fprintf(stderr, "<unknown>\n");
-  }
-}
-
-void builtin_number(struct env_t* env)
-{
-    // TODO: should probably be push self instead of this
-    stack_push(env->stack, &env->stack_idx, env->ip);
-}
-
-void builtin__plus_(struct env_t* env)
-{
-  struct word_trie_node_t* arg1 = stack_pop(env->stack, &env->stack_idx);
-  struct word_trie_node_t* arg2 = stack_pop(env->stack, &env->stack_idx);
-
-  if (arg1->type != node_number || arg2->type != node_number)  {
-    DIE("at least one arg to + was not a number");
-  }
-
-  long res = (long)arg1->param->word + (long)arg2->param->word;
-  char numstr[32];
-  bzero(numstr, 32);
-  numstr[0] = '\0';
-  snprintf(numstr, 31, "%ld", res);
-
-  struct word_trie_node_t* res_node = env_add(env, numstr);
-  res_node->type = node_number;
-  res_node->code = builtin_number;
-  res_node->param = calloc(1, sizeof(struct word_ptr_node_t));
-  res_node->param->word = (struct word_trie_node_t*)res;
-
-  stack_push(env->stack, &env->stack_idx, res_node);
-}
-
-void builtin__dbg(struct env_t* env)
-{
-  word_trie_print(env->dictionary, 0, stderr);
-}
+#undef BUILTIN
 
 void root_env_init(struct env_t* env)
 {
   struct word_trie_node_t* node = 0;
   
-  node = env_add(env, ":");
-  node->type = node_code;
-  node->code = builtin__colon_;
+#define BUILTIN(vector, word, t, imm, fn)                 \
+  node = env_add(env, word);                              \
+  node->type = node_##t;                                  \
+  node->immediate = imm;                                  \
+  node->code = builtin_##vector;                          \
 
-  node = env_add(env, ";");
-  node->type = node_code;
-  node->immediate = 1;
-  node->code = builtin__semicolon_;
-
-  node = env_add(env, ".");
-  node->type = node_code;
-  node->code = builtin__dot_;
-
-  node = env_add(env, "+");
-  node->type = node_code;
-  node->code = builtin__plus_;
-
-  node = env_add(env, "execute");
-  node->type = node_code;
-  node->code = builtin_execute;
-
-  node = env_add(env, "call");
-  node->type = node_code;
-  node->code = builtin_call;
-  
-  node = env_add(env, "_dbg");
-  node->type = node_code;
-  node->code = builtin__dbg;
-
-  node = env_add(env, "words");
-  node->type = node_code;
-  node->code = builtin_words;
-
-  node = env_add(env, "number");
-  node->type = node_code;
-  node->code = builtin_number;
-
-  node = env_add(env, "read_word");
-  node->type = node_code;
-  node->code = builtin_read_word;
-
-  node = env_add(env, "bye"); 
-  node->type = node_code;
-  node->code = builtin_bye; 
+#include "builtins.h"
+#undef BUILTIN
 }
 
 int main(int argc, char** argv)
@@ -455,7 +294,7 @@ int main(int argc, char** argv)
 
     if (trie_node)  {
       cur_env->ip = trie_node;
-      builtin_execute(cur_env);
+      builtin_0(cur_env); /* HACK: We know builtin_0 is execute */
     } else {
       fprintf(stderr, "Error: %s is undefined\n", cur_env->cur_word);
       fpurge(stdin);
