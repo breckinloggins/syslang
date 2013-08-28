@@ -104,22 +104,6 @@ int word_trie_count_words(struct word_trie_node_t* start, char* str, struct word
   return word_trie_count_words(start->edges[k], str, leaf);
 }
 
-int word_trie_count_prefixes(struct word_trie_node_t* start, char* str)
-{
-  if (str[0] == '\0') {
-    return start->prefixes;
-  }
-
-  char k = str[0];
-  ++str;
-
-  if (!start->edges[k]) {
-    return 0;
-  }
-
-  return word_trie_count_prefixes(start->edges[k], str);
-}
-
 void word_trie_print(struct word_trie_node_t* start, int level, FILE* fp)
 {
   for (int i = 0; i < level; i++) fprintf(fp, "  ");
@@ -156,6 +140,25 @@ struct word_trie_node_t* word_trie_lookup(struct word_trie_node_t* start, char *
   }
 
   return word_node;
+}
+
+void word_trie_print_words(struct word_trie_node_t* start, char prefix[MAX_WORD_LEN])
+{
+  int prefix_len = strlen(prefix); 
+  if (start->words) {
+    fprintf(stderr, " "); 
+    fprintf(stderr, "%s", prefix);
+  }
+
+  for (int i = 0; i < 128; i++)
+  {
+    if (!start->edges[i]) continue;
+
+    prefix[prefix_len] = i;
+    prefix[prefix_len+1] = '\0';
+
+    word_trie_print_words(start->edges[i], prefix);
+  }
 }
 
 void stack_push(struct word_trie_node_t** stack, int* stack_idx, struct word_trie_node_t* item)
@@ -233,7 +236,10 @@ void builtin_bye(struct env_t* env)
 
 void builtin_words(struct env_t* env)
 {
-  /* TODO: implement when we have iterator and args */
+  char prefix[MAX_WORD_LEN];
+  prefix[0] = '\0';
+  word_trie_print_words(env->dictionary, prefix);
+  fprintf(stderr, "\n");
 }
 
 void builtin_read_word(struct env_t* env)
@@ -407,6 +413,9 @@ void root_env_init(struct env_t* env)
   node = env_add(env, "number");
   node->type = node_code;
   node->code = builtin_number;
+
+  env_add(env, "name");
+  env_add(env, "nation");
 
   node = env_add(env, "read_word");
   node->type = node_code;
