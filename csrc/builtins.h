@@ -77,10 +77,8 @@ BUILTIN(0, "execute", code, 0, {
   if (!env->ip) DIE("internal compiler error - no instruction pointer");
 
   if (env->mode == imode_interpret || env->ip->immediate) {
-    TRACE(word);
     env->ip->code(env);
   } else if (env->mode == imode_compile) {
-    TRACE(word);
     if (!env->compiling_word) DIE("internal compiler error - not compiling");
 
     struct word_ptr_node_t* last = env->compiling_word->param;

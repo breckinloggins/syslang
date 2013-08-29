@@ -167,14 +167,23 @@ void EXEC(struct env_t* env, char *word)
 
 #undef TRACE
 #define TRACE(s) do {                                             \
-  fprintf(stderr, "TRACED: %s\n", s);                             \
+  fprintf(stderr, "T: %s DS = { ", s);                            \
+  for (int i = env->stack_idx; i < STACK_SIZE; i++)     {         \
+    fprintf(stderr, "%ld ", (long)env->stack[i]->param->word);  \
+  }                                                               \
+  fprintf(stderr, "}  RS = { ");                                  \
+  for (int i = env->rstack_idx; i < STACK_SIZE; i++)  {           \
+    fprintf(stderr, "%x ", (unsigned int)env->rstack[i]);         \
+  }                                                               \
+  fprintf(stderr, "}\n");                                         \
 } while(0)                                                        \
 
 #define BUILTIN(vector, wrd, type, immediate, fn)                 \
 void builtin_##vector(struct env_t* env)                          \
 {                                                                 \
   const char* word = wrd;                                         \
-fn                                                                \
+  fn                                                              \
+  TRACE((char*)word);                                             \
 }
 
 #include "builtins.h"
