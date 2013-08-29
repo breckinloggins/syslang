@@ -2,15 +2,76 @@
 #define BUILTINS_H
 
 /* prototypes */
-struct env_t; 
 #define BUILTIN(vector, word, type, immediate, fn) void builtin_##vector(struct env_t* env);
+#include "builtins.h" /* nest x-macro include.  will declare prototypes */
 
 /* TODO: this is a HACK */
 #define builtin_execute   builtin_0
 #define builtin_read_word builtin_2
 #define builtin_call      builtin_4
 #define builtin_number    builtin_8
-#endif // BULTINS_H
+
+void _builtin_binop(struct env_t* env, const char* word)
+{
+  struct word_trie_node_t* arg1 = stack_pop(env->stack, &env->stack_idx);
+  struct word_trie_node_t* arg2 = stack_pop(env->stack, &env->stack_idx);
+
+  if (arg1->type != node_number || arg2->type != node_number)  {
+    DIE("at least one arg to word was not a number");
+  }
+
+  long res = 0;
+  long n1 = (long)arg1->param->word;
+  long n2 = (long)arg2->param->word;
+  switch (word[0])  {
+  case '+':
+    res = n1 + n2;
+    break;
+  case '-':
+    res = n1 - n2;
+    break;
+  case '*':
+    res = n1 * n2;
+    break;
+  case '/':
+    res = n1 / n2;
+    break;
+  case '%':
+    res = n1 % n2;
+    break;
+  case '&':
+    res = n1 & n2;
+    break;
+  case '|':
+    res = n1 | n2;
+    break;
+  case '^':
+    res = n1 ^ n2;
+    break;
+  default:
+    DIE("internal compiler error - undefined binop");
+  }
+
+  char numstr[32];
+  bzero(numstr, 32);
+  numstr[0] = '\0';
+  snprintf(numstr, 31, "%ld", res);
+
+  struct word_trie_node_t* res_node = env_add(env, numstr);
+  res_node->type = node_number;
+  res_node->code = builtin_number;
+  res_node->param = calloc(1, sizeof(struct word_ptr_node_t));
+  res_node->param->word = (struct word_trie_node_t*)res;
+
+  stack_push(env->stack, &env->stack_idx, res_node);
+}
+
+#else
+
+/* 
+ * The rest of this file will be included multiple times!
+ */
+
 
 BUILTIN(0, "execute", code, 0, {
   if (!env->ip) DIE("internal compiler error - no instruction pointer");
@@ -118,58 +179,11 @@ BUILTIN(8, "number", code, 0, {
     stack_push(env->stack, &env->stack_idx, env->ip);
 })
 
-/* TODO: Factor these binops */
-BUILTIN(9, "+", code, 0, {
-  struct word_trie_node_t* arg1 = stack_pop(env->stack, &env->stack_idx);
-  struct word_trie_node_t* arg2 = stack_pop(env->stack, &env->stack_idx);
-
-  if (arg1->type != node_number || arg2->type != node_number)  {
-    DIE("at least one arg to + was not a number");
-  }
-
-  long res = (long)arg1->param->word + (long)arg2->param->word;
-  char numstr[32];
-  bzero(numstr, 32);
-  numstr[0] = '\0';
-  snprintf(numstr, 31, "%ld", res);
-
-  struct word_trie_node_t* res_node = env_add(env, numstr);
-  res_node->type = node_number;
-  res_node->code = builtin_number;
-  res_node->param = calloc(1, sizeof(struct word_ptr_node_t));
-  res_node->param->word = (struct word_trie_node_t*)res;
-
-  stack_push(env->stack, &env->stack_idx, res_node);
-})
-
-BUILTIN(10, "*", code, 0, {
-  struct word_trie_node_t* arg1 = stack_pop(env->stack, &env->stack_idx);
-  struct word_trie_node_t* arg2 = stack_pop(env->stack, &env->stack_idx);
-
-  if (arg1->type != node_number || arg2->type != node_number)  {
-    DIE("at least one arg to * was not a number");
-  }
-
-  long res = (long)arg1->param->word * (long)arg2->param->word;
-  char numstr[32];
-  bzero(numstr, 32);
-  numstr[0] = '\0';
-  snprintf(numstr, 31, "%ld", res);
-
-  struct word_trie_node_t* res_node = env_add(env, numstr);
-  res_node->type = node_number;
-  res_node->code = builtin_number;
-  res_node->param = calloc(1, sizeof(struct word_ptr_node_t));
-  res_node->param->word = (struct word_trie_node_t*)res;
-
-  stack_push(env->stack, &env->stack_idx, res_node);
-})
-
-BUILTIN(11, "_dbg", code, 0, {
+BUILTIN(9, "_dbg", code, 0, {
   word_trie_print(env->dictionary, 0, stderr);
 })
 
-BUILTIN(12, ".s", code, 0, {
+BUILTIN(10, ".s", code, 0, {
   fprintf(stderr, "%d> ", STACK_SIZE - env->stack_idx);
   for (int i = 0; i < STACK_SIZE - env->stack_idx; i++)  {
     struct word_trie_node_t* node = env->stack[env->stack_idx + i];
@@ -184,4 +198,16 @@ BUILTIN(12, ".s", code, 0, {
   fprintf(stderr, "\n");
 })
 
+/* TODO: Define the operations themselves here as well */
+#define BINOP(vec, op) BUILTIN(vec, op, code, 0, { _builtin_binop(env, word); })
+BINOP(11, "+")
+BINOP(12, "-")
+BINOP(13, "*")
+BINOP(14, "/")
+BINOP(15, "%")
+BINOP(16, "&")
+BINOP(17, "|")
+BINOP(18, "^")
+
 #undef BUILTIN
+#endif // BULTINS_H
