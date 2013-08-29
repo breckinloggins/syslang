@@ -2,6 +2,7 @@
 #define SYSCORE_H
 
 #define DIE(s) fprintf(stderr, "ERROR: %s\n", s), exit(1);
+#define TRACE(s)
 
 #define MAX_WORD_LEN  32
 #define STACK_SIZE    1024

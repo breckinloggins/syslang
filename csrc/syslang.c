@@ -165,6 +165,11 @@ void EXEC(struct env_t* env, char *word)
   builtin_execute(env); 
 }
 
+#undef TRACE
+#define TRACE(s) do {                                             \
+  fprintf(stderr, "TRACED: %s\n", s);                             \
+} while(0)                                                        \
+
 #define BUILTIN(vector, wrd, type, immediate, fn)                 \
 void builtin_##vector(struct env_t* env)                          \
 {                                                                 \

@@ -77,8 +77,10 @@ BUILTIN(0, "execute", code, 0, {
   if (!env->ip) DIE("internal compiler error - no instruction pointer");
 
   if (env->mode == imode_interpret || env->ip->immediate) {
+    TRACE(word);
     env->ip->code(env);
   } else if (env->mode == imode_compile) {
+    TRACE(word);
     if (!env->compiling_word) DIE("internal compiler error - not compiling");
 
     struct word_ptr_node_t* last = env->compiling_word->param;
@@ -217,7 +219,13 @@ BUILTIN(19, "drop", code, 0, {
 
 #define PLACEHOLDER(vec, wrd) BUILTIN(vec, wrd, code, 0, { DIE("not implemented"); })
 PLACEHOLDER(20, "depth")
-PLACEHOLDER(21, "dup")
+
+BUILTIN(21, "dup", code, 0, {
+  struct word_trie_node_t* item = env->stack[env->stack_idx];
+  /* TODO: This is a reference copy!  Numbers should just be literals on the
+   * stack */
+  stack_push(env->stack, &env->stack_idx, item);
+})
 PLACEHOLDER(22, "?dup")
 PLACEHOLDER(23, "over")
 PLACEHOLDER(24, "swap")
