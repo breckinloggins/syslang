@@ -200,6 +200,7 @@ BUILTIN(10, ".s", code, 0, {
 
 /* TODO: Define the operations themselves here as well */
 #define BINOP(vec, op) BUILTIN(vec, op, code, 0, { _builtin_binop(env, word); })
+/* arithmetic binops */
 BINOP(11, "+")
 BINOP(12, "-")
 BINOP(13, "*")
@@ -208,6 +209,75 @@ BINOP(15, "%")
 BINOP(16, "&")
 BINOP(17, "|")
 BINOP(18, "^")
+
+/* stack ops */
+BUILTIN(19, "drop", code, 0, {
+  stack_pop(env->stack, &env->stack_idx);
+})
+
+#define PLACEHOLDER(vec, wrd) BUILTIN(vec, wrd, code, 0, { DIE("not implemented"); })
+PLACEHOLDER(20, "depth")
+PLACEHOLDER(21, "dup")
+PLACEHOLDER(22, "?dup")
+PLACEHOLDER(23, "over")
+PLACEHOLDER(24, "swap")
+PLACEHOLDER(25, "rot")
+PLACEHOLDER(26, "pick")
+PLACEHOLDER(27, "roll")
+PLACEHOLDER(28, "nip")
+PLACEHOLDER(29, "tuck")
+
+/* rstack ops */
+PLACEHOLDER(30, ">r")
+PLACEHOLDER(31, "r@")
+PLACEHOLDER(32, "r>")
+
+/* memory ops */
+PLACEHOLDER(33, "u.")
+PLACEHOLDER(34, "!")
+PLACEHOLDER(35, "@")
+PLACEHOLDER(36, "+!")
+PLACEHOLDER(37, "unused")
+PLACEHOLDER(38, "cells")
+PLACEHOLDER(39, "create")
+PLACEHOLDER(40, "here")
+PLACEHOLDER(41, "allot")
+PLACEHOLDER(42, "erase")
+PLACEHOLDER(43, "cell+")
+
+/* base ops */
+PLACEHOLDER(44, "base")
+PLACEHOLDER(45, "decimal")
+PLACEHOLDER(46, "hex")
+PLACEHOLDER(47, "dump")
+
+/* comparison ops */
+/* TODO: should be defined as BINOPs when applicable */
+PLACEHOLDER(48, "and")
+PLACEHOLDER(49, "or")
+PLACEHOLDER(50, "xor")
+
+/* character handling */
+PLACEHOLDER(51, "emit")
+PLACEHOLDER(52, "char")
+PLACEHOLDER(53, "bl")
+PLACEHOLDER(54, "[char]")
+PLACEHOLDER(55, "key")
+
+/* string handling */
+PLACEHOLDER(56, "s\"")
+PLACEHOLDER(57, "type")
+PLACEHOLDER(58, "count")
+PLACEHOLDER(59, "move")
+
+/* http://www.forth.org/svfig/Len/definwds.htm */
+/* http://www.forth.org/svfig/Len/Quitloop.htm */
+PLACEHOLDER(60, "does>")
+PLACEHOLDER(61, "quit")
+PLACEHOLDER(62, "[")
+PLACEHOLDER(63, "]")
+PLACEHOLDER(64, "compile")
+PLACEHOLDER(65, "defer")
 
 #undef BUILTIN
 #endif // BULTINS_H
