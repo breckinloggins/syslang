@@ -211,6 +211,10 @@ class Interpreter implements TerminalListener  {
       int a1 = ds.pop();
       int a2 = ds.pop();
       ds.push(a1 + a2);
+    } else if (line.equals("*")) {
+      int a1 = ds.pop();
+      int a2 = ds.pop();
+      ds.push(a1 * a2);
     } else {
       try {
         ds.push(Integer.parseInt(line));
