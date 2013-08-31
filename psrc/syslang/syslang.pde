@@ -46,11 +46,14 @@ class Stack  {
   void update()  {
     if (state == STATE_PUSHING)  {
       tosY += 4;
-      if (tosY > dispElementHeight)  {
+    } else if (state == STATE_POPPING)  {
+      tosY -= 4;
+    }
+    
+    if (abs(tosY) == dispElementHeight)  {
         // Done
         tosY = 0;
         state = STATE_IDLE; 
-      }
     }
   }
   
@@ -86,7 +89,7 @@ class Stack  {
         idx = tos + idx + 1;
          
         if (yText < y+h && idx < size)  {
-          if (state != STATE_PUSHING || idx != tos + 1)  {
+          if (state == STATE_IDLE || idx != tos + 1)  {
             text(""+elements[idx], xText, yText);
           }
         }
