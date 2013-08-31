@@ -156,6 +156,8 @@ class Terminal  {
       if (listener != null) listener.onLine(this, curLine);
       
       curLine = "";
+    } else if (key == BACKSPACE)  {
+      if (curLine.length() > 0) curLine = curLine.substring(0, curLine.length()-1); 
     } else {
       curLine += key;  
     }
