@@ -50,13 +50,16 @@ public class Word {
     try  {
       m.currentWord = this;
       if (type == WT_COMPILED)  {
-        for (int i = 0; i < params.size(); i++)  {
-          int idx = params.get(i);
+        m.ip = 0;
+        while (m.ip < params.size())  {
+          int idx = params.get(m.ip);
           if (idx < 0 || idx >= m.dictionary.size())  {
             throw new SyslangException("invalid word address " + idx); 
           }
           Word w = m.dictionary.get(idx);
+          m.rs.push(m.ip);
           w.execute(m);
+          m.ip = m.rs.pop() + 1;
         }
       } else if (name.equals("words"))  {
         for (int i = 0; i < m.dictionary.size(); i++)  {

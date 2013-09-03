@@ -3,12 +3,14 @@ public class Machine  {
   public Stack rs;
   public ArrayList<Word> dictionary;
   public Word currentWord;
+  public int ip;
   public Terminal term;
   public Interpreter interp; 
   
   Machine()  {
     ds = new Stack("DS");
     rs = new Stack("RS");
+    ip = -1;
     dictionary = new ArrayList<Word>();
     currentWord = null;
     interp = new Interpreter(this);
