@@ -7,32 +7,37 @@ class Interpreter implements TerminalListener  {
   }
   
   void onLine(Terminal sender, String line)  {
-    try  {
-      if (line.equals("."))  {
-        sender.println("" + ds.pop());
-      } else if (line.equals("+")) {
+    for (String word : line.split(" "))  {
+      parseWord(word.trim(), sender); 
+    }
+  }
+  
+  void parseWord(String word, Terminal term)  {
+     try  {
+      if (word.equals("."))  {
+        term.println("" + ds.pop());
+      } else if (word.equals("+")) {
         int a1 = ds.pop();
         int a2 = ds.pop();
         ds.push(a1 + a2);
-      } else if (line.equals("*")) {
+      } else if (word.equals("*")) {
         int a1 = ds.pop();
         int a2 = ds.pop();
         ds.push(a1 * a2);
-      } else if (line.equals("quit"))  {
-        doQuit(sender);
       } else {
         try {
-          ds.push(Integer.parseInt(line));
+          ds.push(Integer.parseInt(word));
         } catch (NumberFormatException e)  {
-          sender.println("error");
+          term.println("error: " + word + " is undefined");
         }
       }
     } catch (SyslangException ex)  {
-      sender.println("error: " + ex.getMessage()); 
+      term.println("error: " + ex.getMessage()); 
     }
   }
   
   void doQuit(Terminal sender)  {
-     
+    rs.clear();
+    
   }
 }
