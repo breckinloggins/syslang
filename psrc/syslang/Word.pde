@@ -1,19 +1,32 @@
 public void InitializeBuiltins(ArrayList<Word> dictionary)  {
-  for (String name : new String[]{"execute", ".", "+", "*"})  {
-    dictionary.add(new Word(name)); 
+  for (String name : new String[]{"words", "execute", ".", "+", "*"})  {
+    dictionary.add(new Word(name, Word.WT_PRIMITIVE)); 
   }
 }
   
 public class Word {
-  public String name;
+  public static final int WT_PRIMITIVE = 0;
+  public static final int WT_COMPILED = 1;
   
-  Word(String name)  {
+  public String name;
+  public int type;
+  public ArrayList<Integer> params;
+  
+  Word(String name, int type)  {
     this.name = name;
+    this.type = type;
+    if (type == WT_COMPILED)  {
+      this.params = new ArrayList<Integer>(); 
+    }
   }
   
   public void execute(Machine m)  {
     try  {
-      if (name.equals("execute"))  {
+      if (name.equals("words"))  {
+        for (int i = 0; i < m.dictionary.size(); i++)  {
+          m.term.println("[" + i + "] " + m.dictionary.get(i).name); 
+        }
+      } else if (name.equals("execute"))  {
         int idx = m.ds.pop();
         if (idx < 0 || idx >= m.dictionary.size())  {
           throw new SyslangException("invalid word address"); 
