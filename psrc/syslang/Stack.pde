@@ -1,7 +1,7 @@
 public class Stack  {
-  public final int STATE_IDLE = 0;
-  public final int STATE_PUSHING = 1;
-  public final int STATE_POPPING = 2;
+  public static final int STATE_IDLE = 0;
+  public static final int STATE_PUSHING = 1;
+  public static final int STATE_POPPING = 2;
   
   public int dispWidth = 100;
   public int dispMaxHeight = 300;

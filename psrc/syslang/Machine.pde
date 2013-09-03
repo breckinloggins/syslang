@@ -14,4 +14,11 @@ public class Machine  {
     interp = new Interpreter(this);
     term = new Terminal(interp);
   }
+  
+  public void update()  {
+    ds.update();
+    rs.update();
+    interp.update();
+    term.update(); 
+  }
 }

@@ -1,19 +1,23 @@
+import java.util.LinkedList;
+
 class Interpreter implements TerminalListener  {
   public static final int IM_INTERPRET = 0;
   public static final int IM_COMPILE = 1;
   
   Machine machine;
   public int mode;
+  public LinkedList<String> names;
   
   Interpreter(Machine machine)  {
     this.machine = machine;
     this.mode = IM_INTERPRET;
+    this.names = new LinkedList<String>();
     InitializeBuiltins(machine.dictionary);
   }
   
   void onLine(Terminal sender, String line)  {
     for (String word : line.split(" "))  {
-      parseWord(word.trim(), sender); 
+      names.add(word.trim());
     }
   }
   
@@ -51,5 +55,12 @@ class Interpreter implements TerminalListener  {
         term.println("error: " + name + " is undefined");
       }
     }
+  }
+  
+  public void update()  {
+    while (!names.isEmpty())  {
+      String name = names.remove();
+      parseWord(name, m.term);
+    } 
   }
 }
