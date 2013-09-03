@@ -15,6 +15,10 @@ public class Machine  {
     term = new Terminal(interp);
   }
   
+  public boolean isIdle()  {
+    return ds.state == STATE_IDLE && rs.state == STATE_IDLE; 
+  }
+  
   public void update()  {
     ds.update();
     rs.update();
