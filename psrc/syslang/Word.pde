@@ -31,6 +31,7 @@ public class Word {
   }
   
   public void compile(Machine m)  {
+    // TODO: numbers need code to push themselves
     try {
       if (m.currentWord == null)  {
         throw new SyslangException("no current word"); 
@@ -102,12 +103,18 @@ public class Word {
       } else if (name.equals("r>"))  {
         m.ds.push(m.rs.pop());
       } else if (name.equals("begin"))  {
-        m.rs.push(m.ip);
+        int our_ip = m.rs.pop();
+        m.rs.push(our_ip - 1);  // interpreter will +1 this
+        m.rs.push(our_ip);
       } else if (name.equals("until"))  {      
         int our_ip = m.rs.pop();
         int flag = m.ds.pop();
         if (flag != 0)  {
-            
+          // Nothing needs to be done, we've exposed begin's ip and it will be 
+          // pop'd and executed when the interpreter continues    
+        } else {
+          m.rs.pop();  // get rid of begin's ip
+          m.rs.push(our_ip); 
         }
       } else {
         m.term.println("error: " + name + " does not have defined execution semantics");

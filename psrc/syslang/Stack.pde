@@ -24,7 +24,7 @@ public class Stack  {
   
   void push(int elem) throws SyslangException {
     if (tos < 0)  {
-      throw new SyslangException("stack overflow");
+      throw new SyslangException(name + " stack overflow");
     }
     
     if (tos != size - 1) state = STATE_PUSHING;
@@ -34,7 +34,7 @@ public class Stack  {
   int pop() throws SyslangException {
     if (tos >= size - 1)  {
       clear();
-      throw new SyslangException("stack underflow");
+      throw new SyslangException(name + " stack underflow");
     }
     
     state = STATE_POPPING;
