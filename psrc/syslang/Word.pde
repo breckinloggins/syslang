@@ -1,6 +1,12 @@
 public void InitializeBuiltins(ArrayList<Word> dictionary)  {
-  for (String name : new String[]{"words", "execute", ".", "+", "*"})  {
-    dictionary.add(new Word(name, Word.WT_PRIMITIVE)); 
+  for (String name : new String[]{"words", "execute", ".", "+", "*", ":", ";"})  {
+    Word w = new Word(name, Word.WT_PRIMITIVE);
+    dictionary.add(w);
+    w.index = dictionary.size() - 1;
+    
+    if (w.name.equals(";"))  {
+      w.immediate = true; 
+    }
   }
 }
   
@@ -9,6 +15,7 @@ public class Word {
   public static final int WT_COMPILED = 1;
   
   public String name;
+  public int index;
   public int type;
   public boolean immediate;
   public ArrayList<Integer> params;
@@ -17,13 +24,31 @@ public class Word {
     this.name = name;
     this.type = type;
     this.immediate = false;
+    this.index = -1;
     if (type == WT_COMPILED)  {
       this.params = new ArrayList<Integer>(); 
     }
   }
   
+  public void compile(Machine m)  {
+    try {
+      if (m.currentWord == null)  {
+        throw new SyslangException("no current word"); 
+      } else if (m.currentWord.type != WT_COMPILED)  {
+        throw new SyslangException("current word " + m.currentWord.name + " is not a compiled word"); 
+      } else if (index < 0)  {
+        throw new SyslangException("invalid index"); 
+      }
+      
+      m.currentWord.params.add(index);      
+    } catch (SyslangException e)  {
+      m.term.println("error compiling " + name + ": " + e.getMessage());
+    }  
+  }
+  
   public void execute(Machine m)  {
     try  {
+      m.currentWord = this;
       if (type == WT_COMPILED)  {
         for (int i = 0; i < params.size(); i++)  {
           int idx = params.get(i);
@@ -55,6 +80,10 @@ public class Word {
         int a1 = m.ds.pop();
         int a2 = m.ds.pop();
         m.ds.push(a1 * a2);
+      } else if (name.equals(":"))  {
+        m.interp.mode = Interpreter.IM_COMPILE;
+      } else if (name.equals(";"))  {
+        m.interp.mode = Interpreter.IM_INTERPRET;
       } else {
         m.term.println("error: " + name + " does not have defined execution semantics");
       }

@@ -1,15 +1,14 @@
 class Interpreter implements TerminalListener  {
+  public static final int IM_INTERPRET = 0;
+  public static final int IM_COMPILE = 1;
+  
   Machine machine;
+  public int mode;
   
   Interpreter(Machine machine)  {
     this.machine = machine;
+    this.mode = IM_INTERPRET;
     InitializeBuiltins(machine.dictionary);
-    
-    // TEMP TEST: try a compiled word
-    Word w = new Word("+*", Word.WT_COMPILED);
-    w.params.add(3);
-    w.params.add(4);
-    machine.dictionary.add(w);
   }
   
   void onLine(Terminal sender, String line)  {
@@ -28,8 +27,19 @@ class Interpreter implements TerminalListener  {
       }
     }
     
-    if (word != null)  {
-      word.execute(machine);
+    if (word == null && mode == IM_COMPILE)  {
+      // By default we'll forward declare a new word and set it as the
+      // current word
+      word = new Word(name, Word.WT_COMPILED);
+      machine.dictionary.add(word);
+      word.index = machine.dictionary.size() - 1;
+      m.currentWord = word; 
+    } else if (word != null)  {
+      if (mode == IM_INTERPRET || word.immediate)  {
+        word.execute(machine);
+      } else {
+        word.compile(machine); 
+      }
     } else { 
       try {
         try {

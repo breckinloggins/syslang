@@ -2,6 +2,7 @@ public class Machine  {
   public Stack ds;
   public Stack rs;
   public ArrayList<Word> dictionary;
+  public Word currentWord;
   public Terminal term;
   public Interpreter interp; 
   
@@ -9,6 +10,7 @@ public class Machine  {
     ds = new Stack("DS");
     rs = new Stack("RS");
     dictionary = new ArrayList<Word>();
+    currentWord = null;
     interp = new Interpreter(this);
     term = new Terminal(interp);
   }
