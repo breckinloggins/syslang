@@ -1,11 +1,10 @@
 class Interpreter implements TerminalListener  {
-  Stack ds, rs;
-  HashMap<String, Word> dictionary;
+  Machine machine;
+  ArrayList<Word> dictionary;
   
-  Interpreter(Stack dataStack, Stack returnStack)  {
-    ds = dataStack;
-    rs = returnStack; 
-    dictionary = new HashMap<String, Word>();
+  Interpreter(Machine machine)  {
+    this.machine = machine;
+    dictionary = new ArrayList<Word>();
     InitializeBuiltins(dictionary);
   }
   
@@ -15,25 +14,27 @@ class Interpreter implements TerminalListener  {
     }
   }
   
-  void parseWord(String word, Terminal term)  {
-    Word w = dictionary.get(word);
-    if (w != null)  {
-      w.execute(term, ds, rs);
+  void parseWord(String name, Terminal term)  {
+    Word word = null;
+    for (Word w : dictionary)  {
+      if (w.name.equals(name))  {
+        word = w;
+        break; 
+      }
+    }
+    
+    if (word != null)  {
+      word.execute(machine);
     } else { 
       try {
         try {
-          ds.push(Integer.parseInt(word));
+          machine.ds.push(Integer.parseInt(name));
         } catch (SyslangException e)  {
           term.println("error: " + e.getMessage()); 
         }
       } catch (NumberFormatException e)  {
-        term.println("error: " + word + " is undefined");
+        term.println("error: " + name + " is undefined");
       }
     }
-  }
-  
-  void doQuit(Terminal sender)  {
-    rs.clear();
-    
   }
 }

@@ -1,6 +1,6 @@
-public void InitializeBuiltins(HashMap<String, Word> dictionary)  {
-  for (String name : new String[]{".", "+", "*"})  {
-    dictionary.put(name, new Word(name)); 
+public void InitializeBuiltins(ArrayList<Word> dictionary)  {
+  for (String name : new String[]{"create", ".", "+", "*"})  {
+    dictionary.add(new Word(name)); 
   }
 }
   
@@ -11,23 +11,25 @@ public class Word {
     this.name = name;
   }
   
-  public void execute(Terminal term, Stack ds, Stack rs)  {
+  public void execute(Machine m)  {
     try  {
-      if (name.equals("."))  {
-        term.println("" + ds.pop());
+      if (name.equals("create"))  {
+        
+      } else if (name.equals("."))  {
+        m.term.println("" + m.ds.pop());
       } else if (name.equals("+")) {
-        int a1 = ds.pop();
-        int a2 = ds.pop();
-        ds.push(a1 + a2);
+        int a1 = m.ds.pop();
+        int a2 = m.ds.pop();
+        m.ds.push(a1 + a2);
       } else if (name.equals("*")) {
-        int a1 = ds.pop();
-        int a2 = ds.pop();
-        ds.push(a1 * a2);
+        int a1 = m.ds.pop();
+        int a2 = m.ds.pop();
+        m.ds.push(a1 * a2);
       } else {
-        term.println("error: " + name + " does not have defined execution semantics");
+        m.term.println("error: " + name + " does not have defined execution semantics");
       }
     } catch (SyslangException ex)  {
-      term.println("error executing " + name + ": " + ex.getMessage()); 
+      m.term.println("error executing " + name + ": " + ex.getMessage()); 
     } 
   }
 }

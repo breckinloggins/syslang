@@ -1,6 +1,4 @@
-Stack ds, rs;
-Terminal term;
-Interpreter interp;
+Machine m;
 
 float startTime, currTime;
 float hitTime;
@@ -14,16 +12,17 @@ void setup()  {
   startTime = millis();
   hitTime = 1000;
   
-  ds = new Stack("DS");
-  rs = new Stack("RS");
-  interp = new Interpreter(ds, rs);
-  term = new Terminal(interp);
+  m = new Machine();
+  m.ds = new Stack("DS");
+  m.rs = new Stack("RS");
+  m.interp = new Interpreter(m);
+  m.term = new Terminal(m.interp);
   
   smooth();
 }
 
 void keyPressed()  {
-  term.onKeyPressed(key, keyCode); 
+  m.term.onKeyPressed(key, keyCode); 
 }
 
 void draw()  {
@@ -35,18 +34,18 @@ void draw()  {
     //ds.push((int)random(0, 100));
   }
   
-  int stackX = width - rs.dispWidth - 3;
+  int stackX = width - m.rs.dispWidth - 3;
   int stackY = 20; 
-  rs.update();
-  rs.display(stackX, stackY);
+  m.rs.update();
+  m.rs.display(stackX, stackY);
   
-  stackX -= ds.dispWidth + 6;
-  ds.update();
-  ds.display(stackX, stackY);
+  stackX -= m.ds.dispWidth + 6;
+  m.ds.update();
+  m.ds.display(stackX, stackY);
   
   int termY = height - 300;
   stroke(0);
   line(0, termY, width, termY);
-  term.update();
-  term.display(0, termY);
+  m.term.update();
+  m.term.display(0, termY);
 }
