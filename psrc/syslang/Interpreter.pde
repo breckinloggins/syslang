@@ -1,9 +1,12 @@
 class Interpreter implements TerminalListener  {
   Stack ds, rs;
+  HashMap<String, Word> dictionary;
   
   Interpreter(Stack dataStack, Stack returnStack)  {
     ds = dataStack;
     rs = returnStack; 
+    dictionary = new HashMap<String, Word>();
+    InitializeBuiltins(dictionary);
   }
   
   void onLine(Terminal sender, String line)  {
@@ -13,26 +16,19 @@ class Interpreter implements TerminalListener  {
   }
   
   void parseWord(String word, Terminal term)  {
-     try  {
-      if (word.equals("."))  {
-        term.println("" + ds.pop());
-      } else if (word.equals("+")) {
-        int a1 = ds.pop();
-        int a2 = ds.pop();
-        ds.push(a1 + a2);
-      } else if (word.equals("*")) {
-        int a1 = ds.pop();
-        int a2 = ds.pop();
-        ds.push(a1 * a2);
-      } else {
+    Word w = dictionary.get(word);
+    if (w != null)  {
+      w.execute(term, ds, rs);
+    } else { 
+      try {
         try {
           ds.push(Integer.parseInt(word));
-        } catch (NumberFormatException e)  {
-          term.println("error: " + word + " is undefined");
+        } catch (SyslangException e)  {
+          term.println("error: " + e.getMessage()); 
         }
+      } catch (NumberFormatException e)  {
+        term.println("error: " + word + " is undefined");
       }
-    } catch (SyslangException ex)  {
-      term.println("error: " + ex.getMessage()); 
     }
   }
   
