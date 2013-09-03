@@ -58,10 +58,9 @@ class Interpreter implements TerminalListener  {
   }
   
   public void update()  {
-    // Wait until the machine is idle before doing anything else
-    if (!machine.isIdle()) return;
-    
     while (!names.isEmpty())  {
+      // Wait until the machine is idle before doing anything else
+      if (!machine.isIdle()) return;
       String name = names.remove();
       parseWord(name, m.term);
     } 

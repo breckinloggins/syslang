@@ -16,7 +16,7 @@ public class Machine  {
   }
   
   public boolean isIdle()  {
-    return ds.state == STATE_IDLE && rs.state == STATE_IDLE; 
+    return ds.state == Stack.STATE_IDLE && rs.state == Stack.STATE_IDLE; 
   }
   
   public void update()  {
