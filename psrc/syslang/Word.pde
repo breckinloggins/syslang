@@ -1,5 +1,5 @@
 public void InitializeBuiltins(ArrayList<Word> dictionary)  {
-  for (String name : new String[]{"create", ".", "+", "*"})  {
+  for (String name : new String[]{"execute", ".", "+", "*"})  {
     dictionary.add(new Word(name)); 
   }
 }
@@ -13,8 +13,14 @@ public class Word {
   
   public void execute(Machine m)  {
     try  {
-      if (name.equals("create"))  {
+      if (name.equals("execute"))  {
+        int idx = m.ds.pop();
+        if (idx < 0 || idx >= m.dictionary.size())  {
+          throw new SyslangException("invalid word address"); 
+        }
         
+        Word w = m.dictionary.get(idx);
+        w.execute(m);
       } else if (name.equals("."))  {
         m.term.println("" + m.ds.pop());
       } else if (name.equals("+")) {

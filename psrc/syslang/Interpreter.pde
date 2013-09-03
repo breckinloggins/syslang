@@ -1,11 +1,9 @@
 class Interpreter implements TerminalListener  {
   Machine machine;
-  ArrayList<Word> dictionary;
   
   Interpreter(Machine machine)  {
     this.machine = machine;
-    dictionary = new ArrayList<Word>();
-    InitializeBuiltins(dictionary);
+    InitializeBuiltins(machine.dictionary);
   }
   
   void onLine(Terminal sender, String line)  {
@@ -16,7 +14,8 @@ class Interpreter implements TerminalListener  {
   
   void parseWord(String name, Terminal term)  {
     Word word = null;
-    for (Word w : dictionary)  {
+    for (int i = machine.dictionary.size() - 1; i >= 0; i--)  {
+      Word w = machine.dictionary.get(i);
       if (w.name.equals(name))  {
         word = w;
         break; 

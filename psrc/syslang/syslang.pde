@@ -13,10 +13,6 @@ void setup()  {
   hitTime = 1000;
   
   m = new Machine();
-  m.ds = new Stack("DS");
-  m.rs = new Stack("RS");
-  m.interp = new Interpreter(m);
-  m.term = new Terminal(m.interp);
   
   smooth();
 }
