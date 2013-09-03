@@ -1,5 +1,5 @@
 public void InitializeBuiltins(ArrayList<Word> dictionary)  {
-  for (String name : new String[]{"words", "execute", ".", "+", "-", "*", ":", ";", "drop", "dup", ">r", "r>"})  {
+  for (String name : new String[]{"words", "execute", ".", "+", "-", "*", ":", ";", "drop", "dup", ">r", "r>", "begin", "until"})  {
     Word w = new Word(name, Word.WT_PRIMITIVE);
     dictionary.add(w);
     w.index = dictionary.size() - 1;
@@ -59,8 +59,8 @@ public class Word {
           Word w = m.dictionary.get(idx);
           m.rs.push(m.ip);
           w.execute(m);
-          m.ip = m.rs.pop() + 1;
-        }
+          m.ip = m.rs.pop() + 1;  
+      }
       } else if (name.equals("words"))  {
         for (int i = 0; i < m.dictionary.size(); i++)  {
           m.term.println("[" + i + "] " + m.dictionary.get(i).name); 
@@ -101,6 +101,14 @@ public class Word {
         m.rs.push(m.ds.pop());
       } else if (name.equals("r>"))  {
         m.ds.push(m.rs.pop());
+      } else if (name.equals("begin"))  {
+        m.rs.push(m.ip);
+      } else if (name.equals("until"))  {      
+        int our_ip = m.rs.pop();
+        int flag = m.ds.pop();
+        if (flag != 0)  {
+            
+        }
       } else {
         m.term.println("error: " + name + " does not have defined execution semantics");
       }
