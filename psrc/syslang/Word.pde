@@ -10,11 +10,13 @@ public class Word {
   
   public String name;
   public int type;
+  public boolean immediate;
   public ArrayList<Integer> params;
   
   Word(String name, int type)  {
     this.name = name;
     this.type = type;
+    this.immediate = false;
     if (type == WT_COMPILED)  {
       this.params = new ArrayList<Integer>(); 
     }
@@ -22,7 +24,16 @@ public class Word {
   
   public void execute(Machine m)  {
     try  {
-      if (name.equals("words"))  {
+      if (type == WT_COMPILED)  {
+        for (int i = 0; i < params.size(); i++)  {
+          int idx = params.get(i);
+          if (idx < 0 || idx >= m.dictionary.size())  {
+            throw new SyslangException("invalid word address " + idx); 
+          }
+          Word w = m.dictionary.get(idx);
+          w.execute(m);
+        }
+      } else if (name.equals("words"))  {
         for (int i = 0; i < m.dictionary.size(); i++)  {
           m.term.println("[" + i + "] " + m.dictionary.get(i).name); 
         }

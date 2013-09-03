@@ -4,6 +4,12 @@ class Interpreter implements TerminalListener  {
   Interpreter(Machine machine)  {
     this.machine = machine;
     InitializeBuiltins(machine.dictionary);
+    
+    // TEMP TEST: try a compiled word
+    Word w = new Word("+*", Word.WT_COMPILED);
+    w.params.add(3);
+    w.params.add(4);
+    machine.dictionary.add(w);
   }
   
   void onLine(Terminal sender, String line)  {
