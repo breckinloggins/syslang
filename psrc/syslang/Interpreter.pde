@@ -37,7 +37,7 @@ class Interpreter implements TerminalListener  {
       word = new Word(name, Word.WT_COMPILED);
       machine.dictionary.add(word);
       word.index = machine.dictionary.size() - 1;
-      m.currentWord = word; 
+      m.currentWord = word;
     } else if (word != null)  {
       if (mode == IM_INTERPRET || word.immediate)  {
         word.execute(machine);

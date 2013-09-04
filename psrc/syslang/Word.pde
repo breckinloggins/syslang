@@ -1,5 +1,5 @@
 public void InitializeBuiltins(ArrayList<Word> dictionary)  {
-  for (String name : new String[]{"words", "execute", ".", "+", "-", "*", ":", ";", "drop", "dup", ">r", "r>", "begin", "until"})  {
+  for (String name : new String[]{"words", "execute", ".", "+", "-", "*", ":", ";", "drop", "dup", ">r", "r>", "begin", "until", "true", "false"})  {
     Word w = new Word(name, Word.WT_PRIMITIVE);
     dictionary.add(w);
     w.index = dictionary.size() - 1;
@@ -57,6 +57,7 @@ public class Word {
           if (idx < 0 || idx >= m.dictionary.size())  {
             throw new SyslangException("invalid word address " + idx); 
           }
+          
           Word w = m.dictionary.get(idx);
           m.rs.push(m.ip);
           w.execute(m);
@@ -116,6 +117,10 @@ public class Word {
           m.rs.pop();  // get rid of begin's ip
           m.rs.push(our_ip); 
         }
+      } else if (name.equals("true"))  {
+        m.ds.push(1);
+      } else if (name.equals("false"))  {
+        m.ds.push(0);
       } else {
         m.term.println("error: " + name + " does not have defined execution semantics");
       }
