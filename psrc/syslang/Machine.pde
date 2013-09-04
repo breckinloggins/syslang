@@ -11,7 +11,10 @@ public class Machine  {
   public Interpreter interp; 
   public int state;
   
+  byte[] mem;
+  
   Machine()  {
+    mem = new byte[32768];
     ds = new Stack("DS");
     rs = new Stack("RS");
     ip = -1;
@@ -25,6 +28,10 @@ public class Machine  {
   
   public boolean isIdle()  {
     return this.state == Machine.STATE_IDLE && ds.state == Stack.STATE_IDLE && rs.state == Stack.STATE_IDLE; 
+  }
+  
+  public void innerInterpreter()  {
+     
   }
   
   public void update()  {

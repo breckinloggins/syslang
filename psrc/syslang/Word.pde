@@ -1,5 +1,5 @@
 public void InitializeBuiltins(ArrayList<Word> dictionary)  {
-  for (String name : new String[]{"words", "execute", ".", "+", "-", "*", ":", ";", "drop", "dup", ">r", "r>", "begin", "until", "true", "false"})  {
+  for (String name : new String[]{"words", "execute", ".", "+", "-", "*", ":", ";", "drop", "dup", ">r", "r>", "begin", "until", "true", "false", "parse-word"})  {
     Word w = new Word(name, Word.WT_PRIMITIVE);
     dictionary.add(w);
     w.index = dictionary.size() - 1;
@@ -121,6 +121,8 @@ public class Word {
         m.ds.push(1);
       } else if (name.equals("false"))  {
         m.ds.push(0);
+      } else if (name.equals("parse-word"))  { 
+        
       } else {
         m.term.println("error: " + name + " does not have defined execution semantics");
       }
