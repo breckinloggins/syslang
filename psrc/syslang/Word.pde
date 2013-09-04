@@ -62,7 +62,7 @@ public class Word {
           m.rs.push(m.ip);
           w.execute(m);
           m.ip = m.rs.pop() + 1;  
-      }
+        }
       } else if (name.equals("words"))  {
         for (int i = 0; i < m.dictionary.size(); i++)  {
           m.term.println("[" + i + "] " + m.dictionary.get(i).name); 
@@ -110,12 +110,12 @@ public class Word {
       } else if (name.equals("until"))  {      
         int our_ip = m.rs.pop();
         int flag = m.ds.pop();
-        if (flag != 0)  {
-          // Nothing needs to be done, we've exposed begin's ip and it will be 
-          // pop'd and executed when the interpreter continues    
-        } else {
+        if (flag == 0)  {
           m.rs.pop();  // get rid of begin's ip
-          m.rs.push(our_ip); 
+          m.rs.push(our_ip);     
+        } else {
+          // Nothing needs to be done, we've exposed begin's ip and it will be 
+          // pop'd and executed when the interpreter continues
         }
       } else if (name.equals("true"))  {
         m.ds.push(1);

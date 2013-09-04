@@ -1,4 +1,7 @@
 public class Machine  {
+  public static final int STATE_IDLE = 0;
+  public static final int STATE_RUNNING = 1;
+  
   public Stack ds;
   public Stack rs;
   public ArrayList<Word> dictionary;
@@ -6,6 +9,7 @@ public class Machine  {
   public int ip;
   public Terminal term;
   public Interpreter interp; 
+  public int state;
   
   Machine()  {
     ds = new Stack("DS");
@@ -15,10 +19,12 @@ public class Machine  {
     currentWord = null;
     interp = new Interpreter(this);
     term = new Terminal(interp);
+    
+    state = STATE_IDLE;
   }
   
   public boolean isIdle()  {
-    return ds.state == Stack.STATE_IDLE && rs.state == Stack.STATE_IDLE; 
+    return this.state == Machine.STATE_IDLE && ds.state == Stack.STATE_IDLE && rs.state == Stack.STATE_IDLE; 
   }
   
   public void update()  {
