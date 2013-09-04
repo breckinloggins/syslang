@@ -14,10 +14,10 @@ class Machine
 
     # TEMP: fake code
     memArr = new Uint8Array(@mem)
-    memArr[0] = 0x04  # iconst_1
-    memArr[1] = 0x05  # iconst_2
-    memArr[2] = 0x60  # iadd
-    memArr[3] = 0xa7  # goto
+    memArr[0] = CPU.compile "iconst_1"
+    memArr[1] = CPU.compile "iconst_2"
+    memArr[2] = CPU.compile "iadd"
+    memArr[3] = CPU.compile "goto"
     i = -3 
     memArr[4] = (i >> 8) & 0xff
     memArr[5] = i & 0xff

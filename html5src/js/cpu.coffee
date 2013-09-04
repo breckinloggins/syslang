@@ -11,7 +11,7 @@ CPUStates =
 # http://docs.oracle.com/javase/specs/jvms/se7/html/index.html
 class CPU
   # http://en.wikipedia.org/wiki/Java_bytecode_instruction_listings
-  _opTable:
+  @_opTable:
     nop:            {op: 0x00, ob: 0, fn: -> }
     iconst_m1:      {op: 0x02, ob: 0, fn: -> @mem[--@sp] = -1 }
     iconst_0:       {op: 0x03, ob: 0, fn: -> @mem[--@sp] = 0 }
@@ -32,13 +32,17 @@ class CPU
     goto:           {op: 0xa7, ob: 2, fn: -> @pc += -3 + @memView.getInt16(@pc-2); }
     athrow:         {op: 0xb4, ob: 0, fn: -> @fault = CPUFaults.not_implemented }
 
+  @compile: (opName, args...) ->
+    op = @_opTable[opName]
+    op.op
+
   constructor: (@memBuffer, @stackSize = 1024) ->
     @mem = new Uint8Array(@memBuffer)
     @memView = new DataView(@memBuffer)
     @state = CPUStates.reset
     @ops = new Array(256)
-    @ops[v.op] = $.extend(v, {opc: opc}) for opc, v of @_opTable
-    (@ops[i] = @ops[@_opTable.athrow.op] if @ops[i] == null) for _, i in @ops
+    @ops[v.op] = $.extend(v, {opc: opc}) for opc, v of CPU._opTable
+    (@ops[i] = @ops[CPU._opTable.athrow.op] if @ops[i] == null) for _, i in @ops
     @pc = 0
     @sp = @stackSize
     @fault = CPUFaults.none 
