@@ -12,10 +12,11 @@ CPUFaultNames.push(k) for own k, _ of CPUFaults
 
 # TODO: allow a run_wait state so we can control the speed of the CPU
 CPUStates = 
-  reset:   0
-  running: 1
-  fault:   2
-  halted:  3
+  reset:                0
+  running:              1
+  execute_instruction:  2
+  fault:                3
+  halted:               4
 
 CPUStateNames = []
 CPUStateNames.push(k) for own k, _ of CPUStates
@@ -115,13 +116,16 @@ class CPU
     @ops[v.op] = $.extend(v, {opc: opc}) for opc, v of CPU._opTable
     (@ops[i] = @ops[CPU._opTable.invalid.op] if @ops[i] == undefined) for _, i in @ops 
 
+    @cyclesPerOp = 20  # Higher values slow down the processor
+
     @reset()
 
   reset: () ->
     @pc = 0
     @sp = @stackSize
+    @cycle = 0
     @fault = CPUFaults.none
-    @state = CPUStates.running
+    @state = CPUStates.execute_instruction
 
   peek: () ->
     if @sp >= @stackSize
@@ -163,6 +167,10 @@ class CPU
       0
 
   update: () ->
+    if @state == CPUStates.execute_instruction
+      ++@cycle
+      @state = CPUStates.running if @cycle % @cyclesPerOp == 0
+
     return unless @state == CPUStates.running
 
     # Fetch and decode
@@ -173,6 +181,7 @@ class CPU
     @pc += 1 + op.ob
 
     # Execute
+    @state = CPUStates.execute_instruction
     op.fn.call @
     
     # Validate
