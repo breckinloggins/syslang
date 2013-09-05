@@ -122,6 +122,7 @@ class CPU
 
   reset: () ->
     @pc = 0
+    @curOp = null
     @sp = @stackSize
     @cycle = 0
     @fault = CPUFaults.none
@@ -175,14 +176,14 @@ class CPU
 
     # Fetch and decode
     opcode = @mem[@pc]
-    op = @ops[opcode]
+    @curOp = @ops[opcode]
 
     # Pre-update @pc in case an instruction modifies it
-    @pc += 1 + op.ob
+    @pc += 1 + @curOp.ob
 
     # Execute
     @state = CPUStates.execute_instruction
-    op.fn.call @
+    @curOp.fn.call @
     
     # Validate
     @state = CPUStates.fault unless @fault == CPUFaults.none
@@ -194,11 +195,16 @@ class CPU
     p5.stroke(0)
     p5.fill(0)
     p5.text "pc: " + @pc, x + 5, y + 15
-    p5.text "state: #{CPUStateNames[@state]}", x + 5, y + 30 
-    p5.text "fault: #{CPUFaultNames[@fault]}", x + 5, y + 45
-    if @sp < @stackSize
-      p5.text "tos: " + @peek()[0], x + 5, y + 60 
+    if @curOp?
+      p5.text "op: #{@curOp.opc}", x + 5, y + 30
     else
-      p5.text "tos: --", x + 5, y + 60
+      p5.text "op: --", x + 5, y + 30
+
+    p5.text "state: #{CPUStateNames[@state]}", x + 5, y + 45 
+    p5.text "fault: #{CPUFaultNames[@fault]}", x + 5, y + 60 
+    if @sp < @stackSize
+      p5.text "tos: " + @peek()[0], x + 5, y + 75 
+    else
+      p5.text "tos: --", x + 5, y + 75 
 
 window.CPU = CPU
