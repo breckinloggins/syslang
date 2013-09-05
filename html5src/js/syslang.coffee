@@ -1,10 +1,9 @@
 
+machine = new Machine(32768)
+
 syslang_draw = (p5) ->
-
-  machine = new Machine(32768)
-
   p5.setup = () ->
-    p5.size($(window).width(), $(window).height())
+    p5.size($(window).width(), $(window).height() - 50)
     p5.frameRate(60)
     p5.background(64)
 
@@ -14,7 +13,10 @@ syslang_draw = (p5) ->
     machine.update()
     machine.draw p5
   
+
 $(document).ready ->
   canvas = document.getElementById "processing"
 
   processing = new Processing(canvas, syslang_draw)
+
+  $('#input_line').submit -> machine.interpret($('#input_text').val()); false
