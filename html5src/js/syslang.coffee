@@ -1,5 +1,5 @@
 
-machine = new Machine(32768)
+machine = new Machine(0x20000)
 
 syslang_draw = (p5) ->
   p5.setup = () ->

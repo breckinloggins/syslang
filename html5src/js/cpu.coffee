@@ -6,6 +6,9 @@ CPUFaults =
   stack_overflow:  4
   type_mismatch:   5
   invalid_opcode:  6
+  sec_fault_r:     7  # reading memory that shouldn't be read from
+  sec_fault_w:     8  # writing memory that shouldn't be written to
+  sec_fault_x:     9  # executing code at memory not marked executable
 
 CPUFaultNames = []
 CPUFaultNames.push(k) for own k, _ of CPUFaults
@@ -33,48 +36,20 @@ ValTypes =
   returnAddress:    { tag: 0x40, length: 4, default: 0 }
   arrayRef:         { tag: 0x80, length: 8, default: 0 } # First 32-bits are component tag and length, second 32-bits is pointer
 
-# Write a value in memory and return the length written
-writeVal = (mv, offset, type = ValTypes.byte, value = type.default) ->
-  # We'll start by just storing a full byte as the tag, but we
-  # might want to do more efficient byte packing in the future
-  mv.setUint8 offset++, type.tag
-  switch type
-    when ValTypes.byte                then mv.setUint8 offset, value
-    when ValTypes.short               then mv.setInt16 offset, value
-    when ValTypes.int                 then mv.setInt32 offset, value
-    when ValTypes.long                then mv.setFloat64 offset, value
-    when ValTypes.char                then mv.setUint16 offset, value
-    when ValTypes.boolean             then mv.setUint8 offset, value
-    when ValTypes.returnAddress       then mv.setUint32 offset, value
-    when ValTypes.arrayRef            
-      mv.setUint32 offset, value[0]   # Tag and length
-      mv.setUint32 offset+4, value[1] # Pointer
-    else throw "unrecognized cpu value type in writeVal"
-
-  type.length + 1
-
-# Read the value in memory at the given offset, interpreted as a tagged value
-#
-# returns: [value, type, length_read_in_bytes]
-readVal = (mv, offset) ->
-  type_tag = mv.getUint8 offset++
-  type = t for own k, t of ValTypes when t.tag == type_tag
-  value = switch type
-    when ValTypes.byte                then mv.getUint8 offset
-    when ValTypes.short               then mv.getInt16 offset
-    when ValTypes.int                 then mv.getInt32 offset
-    when ValTypes.long                then mv.getFloat64 offset
-    when ValTypes.char                then mv.getUint16 offset
-    when ValTypes.boolean             then mv.getUint8 offset
-    when ValTypes.returnAddress       then mv.getUint32 offset
-    when ValTypes.arrayRef
-      [mv.getUint32(offset), mv.getUint32(offset+4)]
-    else throw "unrecognized cpu value type #{type} tag #{type_tag} in readVal"
-
-  [value, type, type.length + 1]
-
 # http://docs.oracle.com/javase/specs/jvms/se7/html/index.html
 class CPU
+  @_memMap:
+    stack:          { start: 0x0,     length: 1024,   read: yes, write: yes, execute: no }
+    pad1:           { start: 0x400,   length: 64,     read: no,  write: no,  execute: no }
+    code:           { start: 0x440,   length: 65536,  read: yes, write: yes, execute: yes }
+    heap:           { start: 0x10440, length: 32768,  read: yes, write: yes, execute: no }
+    pad2:           { start: 0x18440, length: 64,     read: no,  write: no,  execute: no }
+    cpu_flags:      { start: 0x18480, length: 2,      read: yes, write: no,  execute: no }
+    kbd_state:      { start: 0x18482, length: 12,     read: yes, write: yes, execute: no }
+    next:           { start: 0x1848E, length: 1,      read: no,  write: no,  execute: no }
+
+  @adrOf: (name) -> @_memMap[name].start
+
   # http://en.wikipedia.org/wiki/Java_bytecode_instruction_listings
   @_opTable:
     nop:            {op: 0x00, ob: 0, fn: -> }
@@ -107,7 +82,7 @@ class CPU
     throw "invalid opcode #{opName}" unless op
     op.op
 
-  constructor: (@memBuffer, @stackSize = 1024) ->
+  constructor: (@memBuffer) ->
     @mem = new Uint8Array(@memBuffer)
     @mv = new DataView(@memBuffer)
 
@@ -116,27 +91,100 @@ class CPU
     @ops[v.op] = $.extend(v, {opc: opc}) for opc, v of CPU._opTable
     (@ops[i] = @ops[CPU._opTable.invalid.op] if @ops[i] == undefined) for _, i in @ops 
 
-    @cyclesPerOp = 20  # Higher values slow down the processor
+    @cyclesPerOp = 1  # Higher values slow down the processor
+
+    # Set up quick protection ranges based on mem map
+    @readRanges = []
+    @readRanges.push([m.start...m.start+m.length]) for own _, m of CPU._memMap when m.read
+    
+    @writeRanges = []
+    @writeRanges.push([m.start...m.start+m.length]) for own _, m of CPU._memMap when m.write
+
+    @execRanges = []
+    @execRanges.push([m.start...m.start+m.length]) for own _, m of CPU._memMap when m.execute
 
     @reset()
 
   reset: () ->
-    @pc = 0
+    @stackSize = CPU._memMap.stack.length
+    @pc = CPU._memMap.code.start 
     @curOp = null
-    @sp = @stackSize
+    @sp = CPU._memMap.stack.start + @stackSize
     @cycle = 0
     @fault = CPUFaults.none
     @state = CPUStates.execute_instruction
+
+  # Write a value in memory and return the length written
+  writeVal: (offset, type = ValTypes.byte, value = type.default) ->
+    # Check for write fault
+    prevFault = @fault
+    for r in @writeRanges
+      if offset in r and (offset + type.length) in r
+        @fault = prevFault
+        break
+      @fault = CPUFaults.sec_fault_w
+
+    return 0 if @fault == CPUFaults.sec_fault_w
+
+    # We'll start by just storing a full byte as the tag, but we
+    # might want to do more efficient byte packing in the future
+    @mv.setUint8 offset++, type.tag
+    switch type
+      when ValTypes.byte                then @mv.setUint8 offset, value
+      when ValTypes.short               then @mv.setInt16 offset, value
+      when ValTypes.int                 then @mv.setInt32 offset, value
+      when ValTypes.long                then @mv.setFloat64 offset, value
+      when ValTypes.char                then @mv.setUint16 offset, value
+      when ValTypes.boolean             then @mv.setUint8 offset, value
+      when ValTypes.returnAddress       then @mv.setUint32 offset, value
+      when ValTypes.arrayRef            
+        @mv.setUint32 offset, value[0]   # Tag and length
+        @mv.setUint32 offset+4, value[1] # Pointer
+      else throw "unrecognized cpu value type in writeVal"
+
+    type.length + 1
+
+  # Read the value in memory at the given offset, interpreted as a tagged value
+  #
+  # returns: [value, type, length_read_in_bytes]
+  readVal: (offset) ->
+    type_tag = @mv.getUint8 offset
+    type = t for own k, t of ValTypes when t.tag == type_tag
+    
+    # Check for protection violation
+    prev_fault = @fault
+    for r in @readRanges
+      if offset in r and (offset + type.length) in r
+        @fault = prev_fault
+        break
+      @fault = CPUFaults.sec_fault_r
+    
+    return [0, ValTypes.byte, 0] if @fault == CPUFaults.sec_fault_r
+
+    ++offset
+    value = switch type
+      when ValTypes.byte                then @mv.getUint8 offset
+      when ValTypes.short               then @mv.getInt16 offset
+      when ValTypes.int                 then @mv.getInt32 offset
+      when ValTypes.long                then @mv.getFloat64 offset
+      when ValTypes.char                then @mv.getUint16 offset
+      when ValTypes.boolean             then @mv.getUint8 offset
+      when ValTypes.returnAddress       then @mv.getUint32 offset
+      when ValTypes.arrayRef
+        [@mv.getUint32(offset), @mv.getUint32(offset+4)]
+      else throw "unrecognized cpu value type #{type} tag #{type_tag} in readVal"
+
+    [value, type, type.length + 1]
 
   peek: () ->
     if @sp >= @stackSize
       @fault = CPUFaults.stack_underflow
       [ValTypes.byte, 0, 0]
 
-    readVal @mv, @sp
+    @readVal @sp
 
   pop: () ->
-    val = readVal @mv, @sp
+    val = @readVal @sp
     @sp += val[2]
     @fault = CPUFaults.stack_underflow if @sp >= @stackSize
     
@@ -148,7 +196,7 @@ class CPU
       @fault = CPUFaults.stack_overflow if @sp < 0
       0
     else
-      writeVal @mv, @sp, type, value
+      @writeVal @sp, type, value
   
   unop: (type, fn) ->
     v = @pop()
@@ -173,6 +221,16 @@ class CPU
       @state = CPUStates.running if @cycle % @cyclesPerOp == 0
 
     return unless @state == CPUStates.running
+
+    # Check for sec_fault
+    prev_fault = @fault
+    for r in @execRanges
+      if @pc in r
+        @fault = prev_fault
+        break
+      @fault = CPUFaults.sec_fault_x
+   
+    return if @fault == CPUFaults.sec_fault_x
 
     # Fetch and decode
     opcode = @mem[@pc]

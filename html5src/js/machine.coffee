@@ -11,10 +11,11 @@ class Machine
     
   constructor: (@memSize) ->
     @mem = new ArrayBuffer(@memSize)
+    @codeStart = CPU.adrOf 'code'
 
     # TEMP: fake code
     memArr = new Uint8Array(@mem)
-    memArr[0] = CPU.compile "halt"
+    memArr[@codeStart] = CPU.compile "halt"
     # i = -3 
     # memArr[4] = (i >> 8) & 0xff
     # memArr[5] = i & 0xff
@@ -25,7 +26,7 @@ class Machine
     lines = text.split(",")
     memArr = new Uint8Array(@mem)
     for line, i in lines
-      memArr[i] = CPU.compile $.trim(line)
+      memArr[@codeStart + i] = CPU.compile $.trim(line)
     
     @cpu.reset()
 
