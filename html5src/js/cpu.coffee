@@ -186,8 +186,7 @@ class CPU
   pop: () ->
     val = @readVal @sp
     @sp += val[2]
-    @fault = CPUFaults.stack_underflow if @sp >= @stackSize
-    
+    @fault = CPUFaults.stack_underflow if @sp > CPU._memMap.stack.start + @stackSize
     val
 
   push: (type, value) ->
