@@ -34,7 +34,7 @@ ValTypes =
   # TODO: flaots and doubles?
   boolean:          { tag: 0x20, length: 1, default: 0 }
   returnAddress:    { tag: 0x40, length: 4, default: 0 }
-  arrayRef:         { tag: 0x80, length: 8, default: 0 } # First 32-bits are component tag and length, second 32-bits is pointer
+  arrayRef:         { tag: 0x80, length: 4, default: 0 } 
 
 # http://docs.oracle.com/javase/specs/jvms/se7/html/index.html
 class CPU
@@ -191,8 +191,8 @@ class CPU
 
   push: (type, value) ->
     @sp -= type.length + 1
-    if @sp < 0
-      @fault = CPUFaults.stack_overflow if @sp < 0
+    if @sp < CPU._memMap.stack.start
+      @fault = CPUFaults.stack_overflow 
       0
     else
       @writeVal @sp, type, value
