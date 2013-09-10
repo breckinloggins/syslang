@@ -15,25 +15,39 @@ class Machine
 
     # TEMP: fake code
     memArr = new Uint8Array(@mem)
-    memArr[@codeStart] = @compile "halt"
+    @assemble memArr, @codeStart, "halt"
     # i = -3 
     # memArr[4] = (i >> 8) & 0xff
     # memArr[5] = i & 0xff
 
     @cpu = new CPU(@mem)
 
-  compile: (line) ->
-    opName = $.trim(line)
-    op = CPU.opTable[opName]
-    throw "invalid opcode #{opName}" unless op
-    op.op
+  assemble: (mem, offset, line) ->
+    [mnemonic, argParts] = $.trim(line).split(/\s(.+)/)
+    mnemonic = $.trim(mnemonic)
+    argParts = $.trim(argParts) 
+
+    if (argParts != '')
+      args = (parseInt($.trim(part)) for part in $.trim(argParts).split(','))
+    else 
+      args = []
+    
+    op = CPU.opTable[mnemonic]
+    throw "invalid opcode #{mnemonic}" unless op
+    throw "incorrect number of arguments (#{args.length} for #{op.ob} expected) for opcode #{mnemonic}" unless args.length == op.ob
+    mem[offset++] = op.op
+    (mem[offset++] = arg) for arg in args 
+
+    offset 
+    
 
   interpret: (text) ->
     lines = text.split("\n")
     memArr = new Uint8Array(@mem)
+    offset = @codeStart
     for line, i in lines
       continue if $.trim(line) == ''
-      memArr[@codeStart + i] = @compile line
+      offset = @assemble memArr, offset, line
     
     @cpu.reset()
 

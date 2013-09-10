@@ -86,7 +86,7 @@ class CPU
     ineg:           {op: 0x74, ob: 0, fn: -> @unop ValTypes.int, (a) -> -a }
     goto:           {op: 0xa7, ob: 2, fn: -> @pc += -3 + @mv.getInt16(@pc-2); }
     athrow:         {op: 0xb4, ob: 0, fn: -> @fault = CPUFaults.not_implemented }
-    newarray:       {op: 0xbc, ob: 1, fn: -> tag = @mv.getUint8(@pc - 1); len = @pop()[0]; console.log "newarray type #{ValTypes.typeForTag(tag)} length #{len}"}
+    newarray:       {op: 0xbc, ob: 1, fn: -> tag = @mv.getUint8(@pc - 1); len = @pop()[0]; console.log "newarray type #{tag}/#{ValTypes.typeForTag(tag).tag} length #{len}"}
     arraylength:    {op: 0xbe, ob: 0, fn: -> @fault = CPUFaults.not_implemented }
     invalid:        {op: 0xfe, ob: 0, fn: -> @fault = CPUFaults.invalid_opcode }
     halt:           {op: 0xff, ob: 0, fn: -> @state = CPUStates.halted } # Not a real JVM opcode
