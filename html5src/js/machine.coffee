@@ -23,7 +23,7 @@ class Machine
     @cpu = new CPU(@mem)
 
   interpret: (text) ->
-    lines = text.split(",")
+    lines = text.split("\n")
     memArr = new Uint8Array(@mem)
     for line, i in lines
       memArr[@codeStart + i] = CPU.compile $.trim(line)

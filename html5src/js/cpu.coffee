@@ -35,11 +35,24 @@ ValTypes =
   boolean:          { tag: 0x20, length: 1, default: 0 }
   returnAddress:    { tag: 0x40, length: 4, default: 0 }
   arrayRef:         { tag: 0x80, length: 4, default: 0 } 
+  
+  typeForTag: (tag) -> (v for own _, v of @ when v.tag == tag)[0]
+
+class ArrayRef
+  # Read an arrayref at location p
+  @read: (mv, p) ->
+    tag = mv.getUint8(p)
+    length = mv.getUint32(p+4)
+
+  constructor: (@valType, @length) ->
+
+   
 
 # http://docs.oracle.com/javase/specs/jvms/se7/html/index.html
 class CPU
   @_memMap:
-    stack:          { start: 0x0,     length: 1024,   read: yes, write: yes, execute: no }
+    arr0:           { start: 0x0,     length: 8,      read: yes, write: no,  execute: no } # arrayref for entire memory
+    stack:          { start: 0x8,     length: 1016,   read: yes, write: yes, execute: no }
     pad1:           { start: 0x400,   length: 64,     read: no,  write: no,  execute: no }
     code:           { start: 0x440,   length: 65536,  read: yes, write: yes, execute: yes }
     heap:           { start: 0x10440, length: 32768,  read: yes, write: yes, execute: no }
@@ -73,6 +86,7 @@ class CPU
     ineg:           {op: 0x74, ob: 0, fn: -> @unop ValTypes.int, (a) -> -a }
     goto:           {op: 0xa7, ob: 2, fn: -> @pc += -3 + @mv.getInt16(@pc-2); }
     athrow:         {op: 0xb4, ob: 0, fn: -> @fault = CPUFaults.not_implemented }
+    newarray:       {op: 0xbc, ob: 1, fn: -> tag = @mv.getUint8(@pc - 1); len = @pop()[0]; console.log "newarray type #{ValTypes.typeForTag(tag)} length #{len}"}
     arraylength:    {op: 0xbe, ob: 0, fn: -> @fault = CPUFaults.not_implemented }
     invalid:        {op: 0xfe, ob: 0, fn: -> @fault = CPUFaults.invalid_opcode }
     halt:           {op: 0xff, ob: 0, fn: -> @state = CPUStates.halted } # Not a real JVM opcode
@@ -149,7 +163,7 @@ class CPU
   # returns: [value, type, length_read_in_bytes]
   readVal: (offset) ->
     type_tag = @mv.getUint8 offset
-    type = t for own k, t of ValTypes when t.tag == type_tag
+    type = ValTypes.typeForTag type_tag
     
     # Check for protection violation
     prev_fault = @fault
@@ -177,16 +191,19 @@ class CPU
     [value, type, type.length + 1]
 
   peek: () ->
-    if @sp >= @stackSize
+    if @sp > CPU._memMap.stack.start + @stackSize
       @fault = CPUFaults.stack_underflow
       [ValTypes.byte, 0, 0]
 
     @readVal @sp
 
   pop: () ->
+    if @sp >= CPU._memMap.stack.start + @stackSize
+      @fault = CPUFaults.stack_underflow
+      return [ValTypes.byte, 0, 0]
+
     val = @readVal @sp
     @sp += val[2]
-    @fault = CPUFaults.stack_underflow if @sp > CPU._memMap.stack.start + @stackSize
     val
 
   push: (type, value) ->
@@ -259,7 +276,7 @@ class CPU
 
     p5.text "state: #{CPUStateNames[@state]}", x + 5, y + 45 
     p5.text "fault: #{CPUFaultNames[@fault]}", x + 5, y + 60 
-    if @sp < @stackSize
+    if @sp < CPU._memMap.stack.start + @stackSize
       p5.text "tos: " + @peek()[0], x + 5, y + 75 
     else
       p5.text "tos: --", x + 5, y + 75 

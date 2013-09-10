@@ -3,7 +3,7 @@ machine = new Machine(0x20000)
 
 syslang_draw = (p5) ->
   p5.setup = () ->
-    p5.size($(window).width(), $(window).height() - 50)
+    p5.size($(window).width(), $(window).height() - 150) # TODO: this needs to be the dimensions of the div!
     p5.frameRate(60)
     p5.background(64)
 
