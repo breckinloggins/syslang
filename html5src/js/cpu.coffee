@@ -50,7 +50,7 @@ class ArrayRef
 
 # http://docs.oracle.com/javase/specs/jvms/se7/html/index.html
 class CPU
-  @_memMap:
+  @memMap:
     arr0:           { start: 0x0,     length: 8,      read: yes, write: no,  execute: no } # arrayref for entire memory
     stack:          { start: 0x8,     length: 1016,   read: yes, write: yes, execute: no }
     pad1:           { start: 0x400,   length: 64,     read: no,  write: no,  execute: no }
@@ -61,10 +61,10 @@ class CPU
     kbd_state:      { start: 0x18482, length: 12,     read: yes, write: yes, execute: no }
     next:           { start: 0x1848E, length: 1,      read: no,  write: no,  execute: no }
 
-  @adrOf: (name) -> @_memMap[name].start
+    adrOf: (name) -> @[name].start
 
   # http://en.wikipedia.org/wiki/Java_bytecode_instruction_listings
-  @_opTable:
+  @opTable:
     nop:            {op: 0x00, ob: 0, fn: -> }
     iconst_m1:      {op: 0x02, ob: 0, fn: -> @push ValTypes.int, -1 }
     iconst_0:       {op: 0x03, ob: 0, fn: -> @push ValTypes.int, 0 }
@@ -91,39 +91,34 @@ class CPU
     invalid:        {op: 0xfe, ob: 0, fn: -> @fault = CPUFaults.invalid_opcode }
     halt:           {op: 0xff, ob: 0, fn: -> @state = CPUStates.halted } # Not a real JVM opcode
 
-  @compile: (opName, args...) ->
-    op = @_opTable[opName]
-    throw "invalid opcode #{opName}" unless op
-    op.op
-
   constructor: (@memBuffer) ->
     @mem = new Uint8Array(@memBuffer)
     @mv = new DataView(@memBuffer)
 
     # Transform the by-name op table into one index by opcode for speed
     @ops = new Array(256)
-    @ops[v.op] = $.extend(v, {opc: opc}) for opc, v of CPU._opTable
-    (@ops[i] = @ops[CPU._opTable.invalid.op] if @ops[i] == undefined) for _, i in @ops 
+    @ops[v.op] = $.extend(v, {opc: opc}) for opc, v of CPU.opTable
+    (@ops[i] = @ops[CPU.opTable.invalid.op] if @ops[i] == undefined) for _, i in @ops 
 
     @cyclesPerOp = 1  # Higher values slow down the processor
 
     # Set up quick protection ranges based on mem map
     @readRanges = []
-    @readRanges.push([m.start...m.start+m.length]) for own _, m of CPU._memMap when m.read
+    @readRanges.push([m.start...m.start+m.length]) for own _, m of CPU.memMap when m.read
     
     @writeRanges = []
-    @writeRanges.push([m.start...m.start+m.length]) for own _, m of CPU._memMap when m.write
+    @writeRanges.push([m.start...m.start+m.length]) for own _, m of CPU.memMap when m.write
 
     @execRanges = []
-    @execRanges.push([m.start...m.start+m.length]) for own _, m of CPU._memMap when m.execute
+    @execRanges.push([m.start...m.start+m.length]) for own _, m of CPU.memMap when m.execute
 
     @reset()
 
   reset: () ->
-    @stackSize = CPU._memMap.stack.length
-    @pc = CPU._memMap.code.start 
+    @stackSize = CPU.memMap.stack.length
+    @pc = CPU.memMap.code.start 
     @curOp = null
-    @sp = CPU._memMap.stack.start + @stackSize
+    @sp = CPU.memMap.stack.start + @stackSize
     @cycle = 0
     @fault = CPUFaults.none
     @state = CPUStates.execute_instruction
@@ -191,14 +186,14 @@ class CPU
     [value, type, type.length + 1]
 
   peek: () ->
-    if @sp > CPU._memMap.stack.start + @stackSize
+    if @sp > CPU.memMap.stack.start + @stackSize
       @fault = CPUFaults.stack_underflow
       [ValTypes.byte, 0, 0]
 
     @readVal @sp
 
   pop: () ->
-    if @sp >= CPU._memMap.stack.start + @stackSize
+    if @sp >= CPU.memMap.stack.start + @stackSize
       @fault = CPUFaults.stack_underflow
       return [ValTypes.byte, 0, 0]
 
@@ -208,7 +203,7 @@ class CPU
 
   push: (type, value) ->
     @sp -= type.length + 1
-    if @sp < CPU._memMap.stack.start
+    if @sp < CPU.memMap.stack.start
       @fault = CPUFaults.stack_overflow 
       0
     else
@@ -276,7 +271,7 @@ class CPU
 
     p5.text "state: #{CPUStateNames[@state]}", x + 5, y + 45 
     p5.text "fault: #{CPUFaultNames[@fault]}", x + 5, y + 60 
-    if @sp < CPU._memMap.stack.start + @stackSize
+    if @sp < CPU.memMap.stack.start + @stackSize
       p5.text "tos: " + @peek()[0], x + 5, y + 75 
     else
       p5.text "tos: --", x + 5, y + 75 

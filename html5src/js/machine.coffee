@@ -11,22 +11,29 @@ class Machine
     
   constructor: (@memSize) ->
     @mem = new ArrayBuffer(@memSize)
-    @codeStart = CPU.adrOf 'code'
+    @codeStart = CPU.memMap.adrOf 'code'
 
     # TEMP: fake code
     memArr = new Uint8Array(@mem)
-    memArr[@codeStart] = CPU.compile "halt"
+    memArr[@codeStart] = @compile "halt"
     # i = -3 
     # memArr[4] = (i >> 8) & 0xff
     # memArr[5] = i & 0xff
 
     @cpu = new CPU(@mem)
 
+  compile: (line) ->
+    opName = $.trim(line)
+    op = CPU.opTable[opName]
+    throw "invalid opcode #{opName}" unless op
+    op.op
+
   interpret: (text) ->
     lines = text.split("\n")
     memArr = new Uint8Array(@mem)
     for line, i in lines
-      memArr[@codeStart + i] = CPU.compile $.trim(line)
+      continue if $.trim(line) == ''
+      memArr[@codeStart + i] = @compile line
     
     @cpu.reset()
 
