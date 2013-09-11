@@ -38,18 +38,28 @@ ValTypes =
   
   typeForTag: (tag) -> (v for own _, v of @ when v.tag == tag)[0]
 
-class ArrayRef
-  # Read an arrayref at location p
-  @read: (mv, p) ->
-    tag = mv.getUint8(p)
-    length = mv.getUint32(p+4)
+# Reads and writes an 8 byte structure describing an array after that structure
+ArrayRef =
+  size: 8
+  read: (mv, p) -> {type: ValTypes.typeForTag(mv.getUint8(p)), length: mv.getUint32(p+4)}
+  write: (mv, p, type, length) ->
+    mv.setUint8(p, type.tag)
+    mv.setUint32(p+4, length)
+    {type: type, length: length}
+  getValueAddress: (mv, type, arrayref, i) ->
+    ref = ArrayRef.read(mv, arrayref)
+    throw "Type mismatch" if type != ref.type
 
-  constructor: (@valType, @length) ->
+    size = ref.type.length
 
-   
+    offset = i * size
+    throw "Array index outside the bounds of array" if i < 0 or offset > ref.length * size 
+
+    arrayref + ArrayRef.size + offset
 
 # http://docs.oracle.com/javase/specs/jvms/se7/html/index.html
 class CPU
+  # TODO: Load memmap into memory
   @memMap:
     arr0:           { start: 0x0,     length: 8,      read: yes, write: no,  execute: no } # arrayref for entire memory
     stack:          { start: 0x8,     length: 1016,   read: yes, write: yes, execute: no }
@@ -64,6 +74,7 @@ class CPU
     adrOf: (name) -> @[name].start
 
   # http://en.wikipedia.org/wiki/Java_bytecode_instruction_listings
+  # TODO: Load opTable into memory
   @opTable:
     nop:            {op: 0x00, ob: 0, fn: -> }
     iconst_m1:      {op: 0x02, ob: 0, fn: -> @push ValTypes.int, -1 }
@@ -73,9 +84,9 @@ class CPU
     iconst_3:       {op: 0x06, ob: 0, fn: -> @push ValTypes.int, 3 }
     iconst_4:       {op: 0x07, ob: 0, fn: -> @push ValTypes.int, 4 }
     iconst_5:       {op: 0x08, ob: 0, fn: -> @push ValTypes.int, 5 }
-    bipush:         {op: 0x10, ob: 1, fn: -> @push ValTypes.byte, args[0] }
-    baload:         {op: 0x33, ob: 0, fn: -> @fault = CPUFaults.not_implemented } 
-    bastore:        {op: 0x54, ob: 0, fn: -> @fault = CPUFaults.not_implemented }
+    bipush:         {op: 0x10, ob: 1, fn: -> b = @mv.getUint8(@pc - 1); @push ValTypes.byte, b }
+    baload:         {op: 0x33, ob: 0, fn: -> idx = @pop()[0]; ref = @pop()[0]; @arrayLoad(ValTypes.byte, ref, idx) }
+    bastore:        {op: 0x54, ob: 0, fn: -> val = @pop(); idx = @pop()[0]; ref = @pop()[0]; @arrayStore(ValTypes.byte, ref, idx, val) }
     pop:            {op: 0x57, ob: 0, fn: -> @pop() }
     dup:            {op: 0x59, ob: 0, fn: -> val = @peek(); @push(val[1], val[0]) }
     swap:           {op: 0x5f, ob: 0, fn: -> v1 = @pop(); v2 = @pop(); @push(v1[1], v1[0]); @push(v2[1], v2[0]) }
@@ -86,14 +97,18 @@ class CPU
     ineg:           {op: 0x74, ob: 0, fn: -> @unop ValTypes.int, (a) -> -a }
     goto:           {op: 0xa7, ob: 2, fn: -> @pc += -3 + @mv.getInt16(@pc-2); }
     athrow:         {op: 0xb4, ob: 0, fn: -> @fault = CPUFaults.not_implemented }
-    newarray:       {op: 0xbc, ob: 1, fn: -> tag = @mv.getUint8(@pc - 1); len = @pop()[0]; console.log "newarray type #{tag}/#{ValTypes.typeForTag(tag).tag} length #{len}"}
-    arraylength:    {op: 0xbe, ob: 0, fn: -> @fault = CPUFaults.not_implemented }
+    newarray:       {op: 0xbc, ob: 1, fn: -> tag = @mv.getUint8(@pc - 1); len = @pop()[0]; console.log "#{tag}/#{ValTypes.typeForTag(tag).tag} length #{len}"; @fault = CPUFaults.not_implemented }
+    arraylength:    {op: 0xbe, ob: 0, fn: -> ref = @pop()[0]; @push(ValTypes.int, ArrayRef.read(@mv, ref).length) }
     invalid:        {op: 0xfe, ob: 0, fn: -> @fault = CPUFaults.invalid_opcode }
     halt:           {op: 0xff, ob: 0, fn: -> @state = CPUStates.halted } # Not a real JVM opcode
 
   constructor: (@memBuffer) ->
     @mem = new Uint8Array(@memBuffer)
     @mv = new DataView(@memBuffer)
+
+    # Write our initial array ref so we can treat the whole memory as arrayref
+    # 0
+    ArrayRef.write @mv, 0, ValTypes.byte, @mem.length - ArrayRef.size
 
     # Transform the by-name op table into one index by opcode for speed
     @ops = new Array(256)
@@ -115,6 +130,8 @@ class CPU
     @reset()
 
   reset: () ->
+    # TODO: Make ALL cpu state (including registers) part of memory so programs
+    # can get to them
     @stackSize = CPU.memMap.stack.length
     @pc = CPU.memMap.code.start 
     @curOp = null
@@ -124,11 +141,12 @@ class CPU
     @state = CPUStates.execute_instruction
 
   # Write a value in memory and return the length written
-  writeVal: (offset, type = ValTypes.byte, value = type.default) ->
+  # If raw is true, the tag byte is NOT written
+  writeVal: (offset, type = ValTypes.byte, value = type.default, raw = false) ->
     # Check for write fault
     prevFault = @fault
     for r in @writeRanges
-      if offset in r and (offset + type.length) in r
+      if offset in r and (offset + type.length + (raw ? -1 : 0)) in r
         @fault = prevFault
         break
       @fault = CPUFaults.sec_fault_w
@@ -137,7 +155,7 @@ class CPU
 
     # We'll start by just storing a full byte as the tag, but we
     # might want to do more efficient byte packing in the future
-    @mv.setUint8 offset++, type.tag
+    @mv.setUint8 offset++, type.tag unless raw
     switch type
       when ValTypes.byte                then @mv.setUint8 offset, value
       when ValTypes.short               then @mv.setInt16 offset, value
@@ -151,14 +169,19 @@ class CPU
         @mv.setUint32 offset+4, value[1] # Pointer
       else throw "unrecognized cpu value type in writeVal"
 
-    type.length + 1
+    type.length + (raw ? 0 : 1)
 
   # Read the value in memory at the given offset, interpreted as a tagged value
   #
   # returns: [value, type, length_read_in_bytes]
-  readVal: (offset) ->
-    type_tag = @mv.getUint8 offset
-    type = ValTypes.typeForTag type_tag
+  readVal: (offset, type = null) ->
+    val_offset = offset
+    if not type?
+      type_tag = @mv.getUint8 offset
+      type = ValTypes.typeForTag type_tag
+      ++val_offset
+    else
+      type_tag = type.tag
     
     # Check for protection violation
     prev_fault = @fault
@@ -170,23 +193,22 @@ class CPU
     
     return [0, ValTypes.byte, 0] if @fault == CPUFaults.sec_fault_r
 
-    ++offset
     value = switch type
-      when ValTypes.byte                then @mv.getUint8 offset
-      when ValTypes.short               then @mv.getInt16 offset
-      when ValTypes.int                 then @mv.getInt32 offset
-      when ValTypes.long                then @mv.getFloat64 offset
-      when ValTypes.char                then @mv.getUint16 offset
-      when ValTypes.boolean             then @mv.getUint8 offset
-      when ValTypes.returnAddress       then @mv.getUint32 offset
+      when ValTypes.byte                then @mv.getUint8 val_offset
+      when ValTypes.short               then @mv.getInt16 val_offset
+      when ValTypes.int                 then @mv.getInt32 val_offset
+      when ValTypes.long                then @mv.getFloat64 val_offset
+      when ValTypes.char                then @mv.getUint16 val_offset
+      when ValTypes.boolean             then @mv.getUint8 val_offset
+      when ValTypes.returnAddress       then @mv.getUint32 val_offset
       when ValTypes.arrayRef
-        [@mv.getUint32(offset), @mv.getUint32(offset+4)]
+        [@mv.getUint32(val_offset), @mv.getUint32(val_offset+4)]
       else throw "unrecognized cpu value type #{type} tag #{type_tag} in readVal"
 
-    [value, type, type.length + 1]
+    [value, type, type.length + (val_offset - offset)]
 
   peek: () ->
-    if @sp > CPU.memMap.stack.start + @stackSize
+    if @sp >= CPU.memMap.stack.start + @stackSize
       @fault = CPUFaults.stack_underflow
       [ValTypes.byte, 0, 0]
 
@@ -225,6 +247,16 @@ class CPU
     else
       @fault = CPUFaults.type_mismatch
       0
+
+  arrayLoad: (type, arrayref, index) ->
+    adr = ArrayRef.getValueAddress(@mv, type, arrayref, index)
+    val = @readVal(adr, type)
+    @push(val[1], val[0]) 
+
+  arrayStore: (type, arrayref, index, val) ->
+    throw "Type mismatch" if val[1] != type
+    adr = ArrayRef.getValueAddress(@mv, type, arrayref, index)
+    @writeVal(adr, type, val[0], true)
 
   update: () ->
     if @state == CPUStates.execute_instruction
