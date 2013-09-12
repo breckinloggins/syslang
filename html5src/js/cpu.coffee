@@ -26,17 +26,19 @@ CPUStateNames.push(k) for own k, _ of CPUStates
 
 # The value of each type is the number of bytes it occupies
 ValTypes = 
-  byte:             { tag: 0x00, length: 1, default: 0 }
-  short:            { tag: 0x02, length: 2, default: 0 }
-  int:              { tag: 0x04, length: 4, default: 0 }
-  long:             { tag: 0x08, length: 8, default: 0 }
-  char:             { tag: 0x10, length: 2, default: 0 } # UTF-16
+  jvmnull:          { tag: 0x00,  length: 1, default: 0 }
+  byte:             { tag: 0x02,  length: 1, default: 0 }
+  short:            { tag: 0x04,  length: 2, default: 0 }
+  int:              { tag: 0x08,  length: 4, default: 0 }
+  long:             { tag: 0x10,  length: 8, default: 0 }
+  char:             { tag: 0x20,  length: 2, default: 0 } # UTF-16
   # TODO: flaots and doubles?
-  boolean:          { tag: 0x20, length: 1, default: 0 }
-  returnAddress:    { tag: 0x40, length: 4, default: 0 }
-  arrayRef:         { tag: 0x80, length: 4, default: 0 } 
+  boolean:          { tag: 0x40,  length: 1, default: 0 }
+  returnAddress:    { tag: 0x80,  length: 4, default: 0 }
+  arrayRef:         { tag: 0x100, length: 4, default: 0 } 
   
   typeForTag: (tag) -> (v for own _, v of @ when v.tag == tag)[0]
+  nameForType: (type) -> (k for own k, v of @ when v == type)[0]
 
 # Reads and writes an 8 byte structure describing an array after that structure
 ArrayRef =
@@ -87,6 +89,7 @@ class CPU
   # TODO: Load opTable into memory
   @opTable:
     nop:            {op: 0x00, ob: 0, fn: -> }
+    iconst_null:    {op: 0x01, ob: 0, fn: -> @push ValTypes.jvmnull, 0 }
     iconst_m1:      {op: 0x02, ob: 0, fn: -> @push ValTypes.int, -1 }
     iconst_0:       {op: 0x03, ob: 0, fn: -> @push ValTypes.int, 0 }
     iconst_1:       {op: 0x04, ob: 0, fn: -> @push ValTypes.int, 1 }
@@ -169,6 +172,7 @@ class CPU
     # might want to do more efficient byte packing in the future
     @mv.setUint8 offset++, type.tag unless raw
     switch type
+      when ValTypes.jvmnull             then @mv.setUint8 offset, 0
       when ValTypes.byte                then @mv.setUint8 offset, value
       when ValTypes.short               then @mv.setInt16 offset, value
       when ValTypes.int                 then @mv.setInt32 offset, value
@@ -206,6 +210,7 @@ class CPU
     return [0, ValTypes.byte, 0] if @fault == CPUFaults.sec_fault_r
 
     value = switch type
+      when ValTypes.jvmnull             then 0
       when ValTypes.byte                then @mv.getUint8 val_offset
       when ValTypes.short               then @mv.getInt16 val_offset
       when ValTypes.int                 then @mv.getInt32 val_offset
@@ -316,7 +321,7 @@ class CPU
     p5.text "state: #{CPUStateNames[@state]}", x + 5, y + 45 
     p5.text "fault: #{CPUFaultNames[@fault]}", x + 5, y + 60 
     if @sp < CPU.memMap.stack.start + @stackSize
-      p5.text "tos: " + @peek()[0], x + 5, y + 75 
+      p5.text "tos: #{@peek()[0]} [#{ValTypes.nameForType @peek()[1]}]", x + 5, y + 75 
     else
       p5.text "tos: --", x + 5, y + 75 
 
