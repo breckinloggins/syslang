@@ -106,7 +106,8 @@ class CPU
     idiv:           {op: 0x6c, ob: 0, fn: -> @binop ValTypes.int, (a, b) -> a / b }
     ineg:           {op: 0x74, ob: 0, fn: -> @unop ValTypes.int, (a) -> -a }
     ifeq:           {op: 0x99, ob: 2, fn: -> val = @pop(); @pc += -3 + @mv.getInt16(@pc-2) if val[0] == 0 }
-    goto:           {op: 0xa7, ob: 2, fn: -> @pc += -3 + @mv.getInt16(@pc-2); }
+    ifne:           {op: 0x9a, ob: 2, fn: -> val = @pop(); @pc += -3 + @mv.getInt16(@pc-2) if val[0] != 0 }
+    goto:           {op: 0xa7, ob: 2, fn: -> os = @mv.getInt16(@pc-2); @pc += -3 + os }
     athrow:         {op: 0xb4, ob: 0, fn: -> @fault = CPUFaults.not_implemented }
     newarray:       {op: 0xbc, ob: 1, fn: -> tag = @mv.getUint8(@pc - 1); len = @pop()[0]; console.log "#{tag}/#{ValTypes.typeForTag(tag).tag} length #{len}"; @fault = CPUFaults.not_implemented }
     arraylength:    {op: 0xbe, ob: 0, fn: -> ref = @pop()[0]; @push(ValTypes.int, ArrayRef.read(@mv, ref).length) }
