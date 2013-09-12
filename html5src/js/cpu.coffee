@@ -60,16 +60,26 @@ ArrayRef =
 # http://docs.oracle.com/javase/specs/jvms/se7/html/index.html
 class CPU
   # TODO: Load memmap into memory
+  # Mem map start addresses are dynamically computed when the CPU is
+  # constructed based on the order given by the "ord" key
   @memMap:
-    arr0:           { start: 0x0,     length: 8,      read: yes, write: no,  execute: no } # arrayref for entire memory
-    stack:          { start: 0x8,     length: 1016,   read: yes, write: yes, execute: no }
-    pad1:           { start: 0x400,   length: 64,     read: no,  write: no,  execute: no }
-    code:           { start: 0x440,   length: 65536,  read: yes, write: yes, execute: yes }
-    heap:           { start: 0x10440, length: 32768,  read: yes, write: yes, execute: no }
-    pad2:           { start: 0x18440, length: 64,     read: no,  write: no,  execute: no }
-    cpu_flags:      { start: 0x18480, length: 2,      read: yes, write: no,  execute: no }
-    kbd_state:      { start: 0x18482, length: 12,     read: yes, write: yes, execute: no }
-    next:           { start: 0x1848E, length: 1,      read: no,  write: no,  execute: no }
+    arr0:           { ord: 0,   start: 0x0,     length: 8,      read: yes, write: no,  execute: no } # arrayref for entire memory
+    stack:          { ord: 1,   start: 0x0,     length: 1024,   read: yes, write: yes, execute: no }
+    pad1:           { ord: 2,   start: 0x0,     length: 64,     read: no,  write: no,  execute: no }
+    code:           { ord: 3,   start: 0x0,     length: 65536,  read: yes, write: yes, execute: yes }
+    pad2:           { ord: 4,   start: 0x0,     length: 64,     read: no,  write: no,  execute: no }
+    cpu_flags:      { ord: 5,   start: 0x0,     length: 2,      read: yes, write: no,  execute: no }
+    kbd_state:      { ord: 6,   start: 0x0,     length: 12,     read: yes, write: yes, execute: no }
+    top:            { ord: 7,   start: 0x0,     length: 1,      read: no,  write: no,  execute: no }
+    heap:           { ord: 8,   start: 0x0,     length: 32768,  read: yes, write: yes, execute: no }
+    
+    init:  (memsize) ->
+      memOffset = 0x0
+      memEntries = (mem for own _, mem of CPU.memMap)
+      memEntries = memEntries.sort (a, b) -> a.ord > b.ord
+      (mem.start = memOffset; memOffset += mem.length) for mem in memEntries 
+
+      throw "Not enough memory to satisfy mem map (#{memOffset} > #{memsize}" if memOffset > memsize 
 
     adrOf: (name) -> @[name].start
 
@@ -105,7 +115,7 @@ class CPU
   constructor: (@memBuffer) ->
     @mem = new Uint8Array(@memBuffer)
     @mv = new DataView(@memBuffer)
-
+    
     # Write our initial array ref so we can treat the whole memory as arrayref
     # 0
     ArrayRef.write @mv, 0, ValTypes.byte, @mem.length - ArrayRef.size

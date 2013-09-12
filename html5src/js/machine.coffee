@@ -10,6 +10,8 @@ class Machine
     p5.text value, x + 10, y
     
   constructor: (@memSize) ->
+    CPU.memMap.init @memSize
+
     @mem = new ArrayBuffer(@memSize)
     @codeStart = CPU.memMap.adrOf 'code'
 
