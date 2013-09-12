@@ -70,7 +70,7 @@ class CPU
     pad2:           { ord: 4,   start: 0x0,     length: 64,     read: no,  write: no,  execute: no }
     cpu_flags:      { ord: 5,   start: 0x0,     length: 2,      read: yes, write: no,  execute: no }
     kbd_state:      { ord: 6,   start: 0x0,     length: 12,     read: yes, write: yes, execute: no }
-    top:            { ord: 7,   start: 0x0,     length: 1,      read: no,  write: no,  execute: no }
+    pad3:           { ord: 7,   start: 0x0,     length: 1,      read: no,  write: no,  execute: no }
     heap:           { ord: 8,   start: 0x0,     length: 32768,  read: yes, write: yes, execute: no }
     
     init:  (memsize) ->
@@ -105,6 +105,7 @@ class CPU
     imul:           {op: 0x68, ob: 0, fn: -> @binop ValTypes.int, (a, b) -> a * b }
     idiv:           {op: 0x6c, ob: 0, fn: -> @binop ValTypes.int, (a, b) -> a / b }
     ineg:           {op: 0x74, ob: 0, fn: -> @unop ValTypes.int, (a) -> -a }
+    ifeq:           {op: 0x99, ob: 2, fn: -> val = @pop(); @pc += -3 + @mv.getInt16(@pc-2) if val[0] == 0 }
     goto:           {op: 0xa7, ob: 2, fn: -> @pc += -3 + @mv.getInt16(@pc-2); }
     athrow:         {op: 0xb4, ob: 0, fn: -> @fault = CPUFaults.not_implemented }
     newarray:       {op: 0xbc, ob: 1, fn: -> tag = @mv.getUint8(@pc - 1); len = @pop()[0]; console.log "#{tag}/#{ValTypes.typeForTag(tag).tag} length #{len}"; @fault = CPUFaults.not_implemented }
