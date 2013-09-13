@@ -61,27 +61,37 @@ ArrayRef =
 
 # http://docs.oracle.com/javase/specs/jvms/se7/html/index.html
 class CPU
-  # TODO: Load memmap into memory
   # Mem map start addresses are dynamically computed when the CPU is
   # constructed based on the order given by the "ord" key
   @memMap:
     arr0:           { ord: 0,   start: 0x0,     length: 8,      read: yes, write: no,  execute: no } # arrayref for entire memory
-    stack:          { ord: 1,   start: 0x0,     length: 1024,   read: yes, write: yes, execute: no }
-    pad1:           { ord: 2,   start: 0x0,     length: 64,     read: no,  write: no,  execute: no }
-    code:           { ord: 3,   start: 0x0,     length: 65536,  read: yes, write: yes, execute: yes }
-    pad2:           { ord: 4,   start: 0x0,     length: 64,     read: no,  write: no,  execute: no }
-    cpu_flags:      { ord: 5,   start: 0x0,     length: 2,      read: yes, write: no,  execute: no }
-    kbd_state:      { ord: 6,   start: 0x0,     length: 12,     read: yes, write: yes, execute: no }
-    pad3:           { ord: 7,   start: 0x0,     length: 1,      read: no,  write: no,  execute: no }
-    heap:           { ord: 8,   start: 0x0,     length: 32768,  read: yes, write: yes, execute: no }
+    mem_map:        { ord: 1,   start: 0x0,     length: 44,     read: yes, write: no,  execute: no } # Reference to ourself
+    method_area:    { ord: 2,   start: 0x0,     length: 32768,  read: yes, write: no,  execute: yes }
+    stack:          { ord: 3,   start: 0x0,     length: 1024,   read: yes, write: yes, execute: no }
+    pad1:           { ord: 4,   start: 0x0,     length: 64,     read: no,  write: no,  execute: no }
+    code:           { ord: 5,   start: 0x0,     length: 65536,  read: yes, write: yes, execute: yes }
+    pad2:           { ord: 6,   start: 0x0,     length: 64,     read: no,  write: no,  execute: no }
+    cpu_flags:      { ord: 7,   start: 0x0,     length: 2,      read: yes, write: no,  execute: no }
+    kbd_state:      { ord: 8,   start: 0x0,     length: 12,     read: yes, write: yes, execute: no }
+    pad3:           { ord: 9,   start: 0x0,     length: 1,      read: no,  write: no,  execute: no }
+    heap:           { ord: 10,  start: 0x0,     length: 32768,  read: yes, write: yes, execute: no }
     
     init:  (memsize) ->
       memOffset = 0x0
-      memEntries = (mem for own _, mem of CPU.memMap)
-      memEntries = memEntries.sort (a, b) -> a.ord > b.ord
+      memEntries = (mem for own _, mem of @ when mem.ord?)
+      memEntries = memEntries.sort (a, b) -> a.ord - b.ord
       (mem.start = memOffset; memOffset += mem.length) for mem in memEntries 
 
-      throw "Not enough memory to satisfy mem map (#{memOffset} > #{memsize}" if memOffset > memsize 
+      throw "Not enough memory to satisfy mem map (#{memOffset} > #{memsize})" if memOffset > memsize 
+
+    write: (mv) ->
+      memOffset = @mem_map.start
+      memEntries = (mem for own _, mem of @ when mem.ord?)
+      (mv.setUint32(memOffset, mem.start); memOffset += 4) for mem in memEntries.sort (a, b) -> a.ord - b.ord
+      
+      # Make sure we don't overwrite anything
+      memOffset -= 4
+      throw "mem_map space too small (#{memOffset - @mem_map.start} bytes for #{@mem_map.length} provided)" if memOffset - @mem_map.start > @mem_map.length
 
     adrOf: (name) -> @[name].start
 
@@ -124,6 +134,10 @@ class CPU
     # Write our initial array ref so we can treat the whole memory as arrayref
     # 0
     ArrayRef.write @mv, 0, ValTypes.byte, @mem.length - ArrayRef.size
+
+    # Write the starting offsets of the mem_map into the mem_map area for
+    # indirect addressing by ordinal
+    CPU.memMap.write(@mv)
 
     # Transform the by-name op table into one index by opcode for speed
     @ops = new Array(256)

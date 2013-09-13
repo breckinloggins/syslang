@@ -1,5 +1,5 @@
 
-machine = new Machine(0x20000)
+machine = new Machine(0x22000)
 
 syslang_draw = (p5) ->
   p5.setup = () ->
@@ -8,11 +8,11 @@ syslang_draw = (p5) ->
     p5.background(64)
 
   p5.keyPressed = () ->
+    machine.keyDown p5.key.code
 
   p5.draw = () ->
     machine.update()
     machine.draw p5
-  
 
 $(document).ready ->
   canvas = document.getElementById "processing"

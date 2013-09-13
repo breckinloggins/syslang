@@ -13,7 +13,10 @@ class Machine
     CPU.memMap.init @memSize
 
     @mem = new ArrayBuffer(@memSize)
+    @memView = new DataView(@mem)
+
     @codeStart = CPU.memMap.adrOf 'code'
+    @kbdStart = CPU.memMap.adrOf 'kbd_state'
 
     # TEMP: fake code
     memArr = new Uint8Array(@mem)
@@ -80,6 +83,11 @@ class Machine
       offset = @assemble labels, memArr, memV, offset, line
     
     @cpu.reset()
+
+  keyDown: (keyChar) ->
+    @memView.setUint8 @kbdStart, 0x80 # Keypress signal
+    @memView.setUint8 @kbdStart+2, keyChar
+    
 
   update: () ->
     @cpu.update()
