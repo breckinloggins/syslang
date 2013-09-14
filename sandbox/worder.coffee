@@ -13,11 +13,21 @@ WordTypes =
 
 class Context
   constructor: (@parent = null) ->
+    @name = ''
     @line = ''
     @arg = null
     @mode = Modes.interpret
     @currentWord = null
     @words = {}
+
+  toString: () ->
+    prefix = @parent?.toString() || '' 
+
+    if prefix != ''
+      "#{prefix}::#{@name}"
+    else
+      @name
+      
 
 context = new Context
 
@@ -83,7 +93,7 @@ fn_eval = (a) ->
       fn_eval fn_lookup_word(a)
     when 'object'
       if a.type == WordTypes.deferred
-        throw "Unrecognized word '#{a.word}'" unless context.parent?
+        throw "Unrecognized word '#{a.word}'" # unless context.parent?
       else if a.type == WordTypes.normal
         a.fn(context.arg)
       else if a.type == WordTypes.compiled
@@ -149,6 +159,19 @@ fn_interpret = (a) ->
 
   context.arg
 
+fn_new_context = (a) ->
+  context = new Context(context)
+  context.name = a?.toString() || ''
+  context.arg = context.parent.arg
+  rl.setPrompt(context.toString() + "> ")
+  context
+
+fn_exit_context = (a) ->
+  throw "Already at top level context" unless context.parent?
+  context.parent.arg = a
+  context = context.parent
+  rl.setPrompt(context.toString() + "> ") 
+  context.arg
 
 builtin = (word, wordType, fn) -> context.words[word] = fn_word [word, wordType, fn]
 
@@ -167,15 +190,24 @@ builtin 'compile',      WordTypes.normal, fn_compile
 builtin 'cur-word',     WordTypes.normal, -> context.currentWord
 builtin 'set-cur-word', WordTypes.normal, fn_set_cur_word
 builtin 'interpret',    WordTypes.normal, fn_interpret
+builtin 'new-context',  WordTypes.normal, fn_new_context
+builtin 'exit-context', WordTypes.normal, fn_exit_context
 
+# TODO: these don't "this" to the current context!
 bootstrap = [
   "read-line [';', 'trigger', function(a) { this.context.mode = 'interpret'; this.context.current_word = null; return true; }]"
+  "native-eval word create"
+
+  "read-line ['forget', 'normal', function(a) { this.context.words[a] = null; }]"
+  "native-eval word create"
+
+  "read-line ['mask', 'normal', function(a) { this.context.words[a] = fn_word([a, 'compiled', null]); }]"
   "native-eval word create"
 
   "read-line ['bye', 'normal', function(a) { process.exit(0); }]"
   "native-eval word create"
 
-  "read-line ['dbg', 'normal', function(a) { console.log(a); return a; }]"
+  "read-line ['dbg', 'normal', function(a) { console.log('[' + typeof(a) + '] ' + a); return a; }]"
   "native-eval word create"
 
   "read-line ['drop', 'normal', function(a) { return null; }]"
@@ -196,7 +228,7 @@ bootstrap = [
   "read-line [')', 'trigger', function(a) { this.context.mode = 'interpret'; return true; }]"
   "native-eval word create"
 
-  "drop"
+  "read-word user new-context drop"
 ]
  
 completer = (l) ->
@@ -205,14 +237,14 @@ completer = (l) ->
 
   [(if hits.length > 0 then hits else completions), l]
 
+rl = readline.createInterface {input: process.stdin, output: process.stdout, completer: completer }
+
 context.words['interpret'].fn(line) for line in bootstrap
 
-rl = readline.createInterface {input: process.stdin, output: process.stdout, completer: completer }
-rl.setPrompt "> "
+rl.setPrompt "#{context.toString()}> "
 rl.prompt()
-
 rl.on('line', (l) ->
-  context.words['interpret'].fn(l)
+  fn_lookup_word('interpret').fn(l)
   rl.prompt()
 ).on 'close', ->
   console.log "Bye"
