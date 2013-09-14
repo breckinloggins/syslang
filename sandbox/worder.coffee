@@ -97,11 +97,7 @@ fn_eval = (a) ->
       else if a.type == WordTypes.normal
         a.fn(context.arg)
       else if a.type == WordTypes.compiled
-        context = new Context(context)
-        context.currentWord = a
         arg = fn_interpret a.params.join(' ')
-        context = context.parent
-        context.arg = arg
       else if fn_lookup_word(a.type).type != WordTypes.deferred
         fn_lookup_word(a.type).fn([a, context.arg]) 
       else
@@ -227,6 +223,8 @@ bootstrap = [
 
   "read-line [')', 'trigger', function(a) { this.context.mode = 'interpret'; return true; }]"
   "native-eval word create"
+  
+  ": # read-line drop ;"
 
   "read-word user new-context drop"
 ]
