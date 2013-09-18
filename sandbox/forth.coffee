@@ -19,8 +19,9 @@ rDrop   = (cod,p) -> ds.pop(); null
 rOver   = (cod,p) -> ds.push(ds[ds.length-2]); null
 rDump   = (cod,p) -> console.log "ds = #{ds}"; null
 rDot    = (cod,p) -> console.log ds.pop(); null
+rJmp    = (cod,p) -> cod[p]
 rPush   = (cod,p) -> ds.push(cod[p]); p + 1
-rRun    = (cod,p) -> throw "Unimplemented"; null
+rRun    = (cod,p) -> execute(rDict[cod[p]]); p + 1
 
 rDict =
   '+': rAdd
